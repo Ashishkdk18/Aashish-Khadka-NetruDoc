@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Container,
   Paper,
@@ -21,7 +21,6 @@ import { RootState, AppDispatch } from '../../../store'
 import { resetPassword, clearError } from '../authSlice'
 
 const ResetPasswordPage: React.FC = () => {
-  const { token } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const dispatch = useDispatch<AppDispatch>()
   const { loading, error } = useSelector((state: RootState) => state.auth)
@@ -31,17 +30,22 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     dispatch(clearError())
-    if (!token) {
-      navigate('/forgot-password')
-    }
-  }, [dispatch, token, navigate])
+  }, [dispatch])
 
   const formik = useFormik({
     initialValues: {
+      email: '',
+      otp: '',
       password: '',
       confirmPassword: '',
     },
     validationSchema: Yup.object({
+      email: Yup.string()
+        .email('Invalid email address')
+        .required('Email is required'),
+      otp: Yup.string()
+        .required('OTP is required')
+        .length(6, 'OTP must be 6 digits'),
       password: Yup.string()
         .min(6, 'Password must be at least 6 characters')
         .required('Password is required'),
@@ -50,9 +54,11 @@ const ResetPasswordPage: React.FC = () => {
         .required('Please confirm your password'),
     }),
     onSubmit: async (values) => {
-      if (!token) return
-      
-      const result = await dispatch(resetPassword({ token, password: values.password }))
+      const result = await dispatch(resetPassword({
+        email: values.email,
+        otp: values.otp,
+        password: values.password
+      }))
       if (resetPassword.fulfilled.match(result)) {
         setSuccess(true)
         setTimeout(() => {
@@ -62,9 +68,6 @@ const ResetPasswordPage: React.FC = () => {
     },
   })
 
-  if (!token) {
-    return null
-  }
 
   return (
     <Container component="main" maxWidth="sm" sx={{ mt: 8 }}>
@@ -73,7 +76,7 @@ const ResetPasswordPage: React.FC = () => {
           Reset Password
         </Typography>
         <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 3 }}>
-          Enter your new password below
+          Enter your email, verification code, and new password below
         </Typography>
 
         {success && (
@@ -90,6 +93,38 @@ const ResetPasswordPage: React.FC = () => {
 
         {!success ? (
           <Box component="form" onSubmit={formik.handleSubmit} sx={{ mt: 1 }}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="email"
+              label="Email Address"
+              name="email"
+              autoComplete="email"
+              value={formik.values.email}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.email && Boolean(formik.errors.email)}
+              helperText={formik.touched.email && formik.errors.email}
+            />
+
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="otp"
+              label="Verification Code"
+              name="otp"
+              value={formik.values.otp}
+              onChange={(e) => {
+                formik.setFieldValue('otp', e.target.value.replace(/\D/g, '').slice(0, 6))
+              }}
+              onBlur={formik.handleBlur}
+              error={formik.touched.otp && Boolean(formik.errors.otp)}
+              helperText={formik.touched.otp && formik.errors.otp}
+              inputProps={{ maxLength: 6 }}
+            />
+
             <TextField
               margin="normal"
               required

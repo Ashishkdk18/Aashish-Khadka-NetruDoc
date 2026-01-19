@@ -8,7 +8,10 @@ import {
   updateProfile,
   changePassword,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  verifyRegistrationOTP,
+  resendOTP,
+  verifyLoginOTP
 } from './controllers/authController.js';
 import { protect } from '../../middleware/auth.js';
 
@@ -20,7 +23,8 @@ const registerValidation = [
   body('email').isEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').isIn(['patient', 'doctor']).withMessage('Role must be patient or doctor'),
-  body('phone').optional().isString().withMessage('Phone must be a string'),
+  body('phone').optional().matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+    .withMessage('Please provide a valid phone number'),
   // Doctor-specific validation (checked in controller if role is doctor)
   body('licenseNumber').optional().isString().withMessage('License number must be a string'),
   body('specialization').optional().isIn([
@@ -48,7 +52,10 @@ const resetPasswordValidation = [
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
 router.post('/forgot-password', forgotPasswordValidation, forgotPassword);
-router.put('/reset-password/:token', resetPasswordValidation, resetPassword);
+router.put('/reset-password', resetPasswordValidation, resetPassword);
+router.post('/verify-registration-otp', verifyRegistrationOTP);
+router.post('/resend-otp', resendOTP);
+router.post('/verify-login-otp', verifyLoginOTP);
 
 // Protected routes
 router.get('/me', protect, getMe);

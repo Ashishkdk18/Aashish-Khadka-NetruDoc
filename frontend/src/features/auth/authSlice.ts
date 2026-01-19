@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { jwtDecode } from 'jwt-decode'
 import { authApi } from './api/authApi'
-import { AuthState, RegistrationData, LoginCredentials, ProfileUpdate, ChangePasswordData } from './models/authModels'
+import { AuthState, RegistrationData, LoginCredentials, ProfileUpdate, ChangePasswordData, OTPResponse } from './models/authModels'
 import apiClient from '../../services/apiClient'
 
 const initialState: AuthState = {
@@ -44,7 +44,7 @@ export const loadUser = createAsyncThunk(
 // Register user (US1, US2)
 export const register = createAsyncThunk(
   'auth/register',
-  async (userData: RegistrationData, { rejectWithValue }) => {
+  async (userData: RegistrationData, { rejectWithValue }): Promise<any> => {
     try {
       const response = await authApi.register(userData)
 
@@ -52,11 +52,27 @@ export const register = createAsyncThunk(
         return rejectWithValue(response.message || 'Registration failed')
       }
 
-      const { token, user } = response.data
+      // Check if this is an OTP flow response or direct registration response
+      // Backend uses standardized response wrapper: { status, message, data: { ... } }
+      const responseData: any = response.data
 
-      apiClient.setAuthToken(token)
-
-      return { token, user }
+      // Check for direct registration (token/user in data property)
+      if (responseData.data && responseData.data.token && responseData.data.user) {
+        apiClient.setAuthToken(responseData.data.token)
+        return { token: responseData.data.token, user: responseData.data.user }
+      } else if (response.message && responseData.email) {
+        // OTP flow (email/userId in data property)
+        const otpResponse: OTPResponse = {
+          otpRequired: true,
+          message: response.message,
+          email: responseData.email,
+          userId: responseData.userId
+        }
+        return otpResponse
+      } else {
+        // Unexpected response format
+        return rejectWithValue('Unexpected registration response')
+      }
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Registration failed'
       return rejectWithValue(message)
@@ -67,7 +83,7 @@ export const register = createAsyncThunk(
 // Login user (US3)
 export const login = createAsyncThunk(
   'auth/login',
-  async (credentials: LoginCredentials, { rejectWithValue }) => {
+  async (credentials: LoginCredentials, { rejectWithValue }): Promise<any> => {
     try {
       const response = await authApi.login(credentials)
 
@@ -75,11 +91,26 @@ export const login = createAsyncThunk(
         return rejectWithValue(response.message || 'Login failed')
       }
 
-      const { token, user } = response.data
+      // Backend uses standardized response wrapper: { status, message, data: { ... } }
+      const responseData: any = response.data
 
-      apiClient.setAuthToken(token)
-
-      return { token, user }
+      // Check for direct login (token/user in data property)
+      if (responseData.data && responseData.data.token && responseData.data.user) {
+        apiClient.setAuthToken(responseData.data.token)
+        return { token: responseData.data.token, user: responseData.data.user }
+      } else if (response.message && responseData.email) {
+        // OTP flow required (email/userId in data property)
+        const otpResponse: OTPResponse = {
+          otpRequired: true,
+          message: response.message,
+          email: responseData.email,
+          userId: responseData.userId
+        }
+        return otpResponse
+      } else {
+        // Unexpected response format
+        return rejectWithValue('Unexpected login response')
+      }
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Login failed'
       return rejectWithValue(message)
@@ -161,9 +192,9 @@ export const forgotPassword = createAsyncThunk(
 // Reset password (US7)
 export const resetPassword = createAsyncThunk(
   'auth/resetPassword',
-  async ({ token, password }: { token: string; password: string }, { rejectWithValue }) => {
+  async ({ email, otp, password }: { email: string; otp: string; password: string }, { rejectWithValue }) => {
     try {
-      const response = await authApi.resetPassword(token, password)
+      const response = await authApi.resetPassword(email, otp, password)
 
       if (response.status === 'error') {
         return rejectWithValue(response.message || 'Failed to reset password')
@@ -172,6 +203,71 @@ export const resetPassword = createAsyncThunk(
       return response.message || 'Password reset successfully'
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Failed to reset password'
+      return rejectWithValue(message)
+    }
+  }
+)
+
+// Verify registration OTP
+export const verifyRegistrationOTP = createAsyncThunk(
+  'auth/verifyRegistrationOTP',
+  async ({ email, otp }: { email: string; otp: string }, { rejectWithValue }) => {
+    try {
+      const response = await authApi.verifyRegistrationOTP(email, otp)
+
+      if (response.status === 'error') {
+        return rejectWithValue(response.message || 'OTP verification failed')
+      }
+
+      const { token, user } = response.data
+
+      apiClient.setAuthToken(token)
+
+      return { token, user }
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'OTP verification failed'
+      return rejectWithValue(message)
+    }
+  }
+)
+
+// Verify login OTP
+export const verifyLoginOTP = createAsyncThunk(
+  'auth/verifyLoginOTP',
+  async ({ email, otp }: { email: string; otp: string }, { rejectWithValue }) => {
+    try {
+      const response = await authApi.verifyLoginOTP(email, otp)
+
+      if (response.status === 'error') {
+        return rejectWithValue(response.message || 'OTP verification failed')
+      }
+
+      const { token, user } = response.data
+
+      apiClient.setAuthToken(token)
+
+      return { token, user }
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'OTP verification failed'
+      return rejectWithValue(message)
+    }
+  }
+)
+
+// Resend OTP
+export const resendOTP = createAsyncThunk(
+  'auth/resendOTP',
+  async (email: string, { rejectWithValue }) => {
+    try {
+      const response = await authApi.resendOTP(email)
+
+      if (response.status === 'error') {
+        return rejectWithValue(response.message || 'Failed to resend OTP')
+      }
+
+      return response.data.message || 'Verification code sent to your email'
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Failed to resend OTP'
       return rejectWithValue(message)
     }
   }
@@ -211,9 +307,19 @@ const authSlice = createSlice({
       })
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false
-        state.isAuthenticated = true
-        state.user = action.payload.user
-        state.token = action.payload.token
+        // Check if this is a direct registration (with token/user) or OTP response
+        if (action.payload.token && action.payload.user) {
+          state.isAuthenticated = true
+          state.user = action.payload.user
+          state.token = action.payload.token
+          // Clear OTP flags for direct registration
+          state.otpRequired = false
+          state.otpEmail = null
+        } else if (action.payload.otpRequired) {
+          // OTP response - set flags for OTP verification
+          state.otpRequired = true
+          state.otpEmail = action.payload.email
+        }
         state.error = null
       })
       .addCase(register.rejected, (state, action) => {
@@ -222,6 +328,9 @@ const authSlice = createSlice({
         state.user = null
         state.token = null
         state.error = action.payload as string
+        // Clear OTP flags on error
+        state.otpRequired = false
+        state.otpEmail = null
       })
       // Login
       .addCase(login.pending, (state) => {
@@ -230,9 +339,19 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false
-        state.isAuthenticated = true
-        state.user = action.payload.user
-        state.token = action.payload.token
+        // Check if this is a direct login (with token/user) or OTP response
+        if (action.payload.token && action.payload.user) {
+          state.isAuthenticated = true
+          state.user = action.payload.user
+          state.token = action.payload.token
+          // Clear OTP flags for direct login
+          state.otpRequired = false
+          state.otpEmail = null
+        } else if (action.payload.otpRequired) {
+          // OTP response - set flags for OTP verification
+          state.otpRequired = true
+          state.otpEmail = action.payload.email
+        }
         state.error = null
       })
       .addCase(login.rejected, (state, action) => {
@@ -240,6 +359,62 @@ const authSlice = createSlice({
         state.isAuthenticated = false
         state.user = null
         state.token = null
+        state.error = action.payload as string
+        // Clear OTP flags on error
+        state.otpRequired = false
+        state.otpEmail = null
+      })
+      // Verify Registration OTP
+      .addCase(verifyRegistrationOTP.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(verifyRegistrationOTP.fulfilled, (state, action) => {
+        state.loading = false
+        state.isAuthenticated = true
+        state.user = action.payload.user
+        state.token = action.payload.token
+        state.error = null
+        // Clear OTP flags after successful verification
+        state.otpRequired = false
+        state.otpEmail = null
+      })
+      .addCase(verifyRegistrationOTP.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload as string
+      })
+      // Verify Login OTP
+      .addCase(verifyLoginOTP.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(verifyLoginOTP.fulfilled, (state, action) => {
+        state.loading = false
+        state.isAuthenticated = true
+        state.user = action.payload.user
+        state.token = action.payload.token
+        state.error = null
+        // Clear OTP flags after successful verification
+        state.otpRequired = false
+        state.otpEmail = null
+      })
+      .addCase(verifyLoginOTP.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload as string
+        // Clear OTP flags on error
+        state.otpRequired = false
+        state.otpEmail = null
+      })
+      // Resend OTP
+      .addCase(resendOTP.pending, (state) => {
+        state.loading = true
+      })
+      .addCase(resendOTP.fulfilled, (state) => {
+        state.loading = false
+        state.error = null
+      })
+      .addCase(resendOTP.rejected, (state, action) => {
+        state.loading = false
         state.error = action.payload as string
       })
       // Update Profile

@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { Container, Box } from '@mui/material'
+import { Box } from '@mui/material'
 import { useDispatch } from 'react-redux'
 import { AppDispatch } from './store'
 import { loadUser } from './features/auth/authSlice'
 
-import Navbar from './components/layout/Navbar'
-import Footer from './components/layout/Footer'
+import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 // Feature pages
@@ -22,6 +21,7 @@ import EditProfilePage from './features/users/pages/EditProfilePage'
 import UserManagementPage from './features/users/pages/UserManagementPage'
 import AdminDoctorsPage from './features/users/pages/AdminDoctorsPage'
 import AdminPatientsPage from './features/users/pages/AdminPatientsPage'
+import AdminPatientProfilePage from './features/users/pages/AdminPatientProfilePage'
 import AppointmentBookingPage from './features/appointments/pages/AppointmentBookingPage'
 import MyAppointmentsPage from './features/appointments/pages/MyAppointmentsPage'
 import ConsultationPage from './features/consultations/pages/ConsultationPage'
@@ -30,6 +30,7 @@ import PaymentPage from './features/payments/pages/PaymentPage'
 import DashboardPage from './features/dashboard/pages/DashboardPage'
 import AdminDashboardPage from './features/dashboard/pages/AdminDashboardPage'
 import AdminHospitalsPage from './features/hospitals/pages/AdminHospitalsPage'
+import AdminHospitalProfilePage from './features/hospitals/pages/AdminHospitalProfilePage'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -40,104 +41,115 @@ function App() {
   }, [dispatch])
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Navbar />
-      <Container maxWidth="lg" sx={{ flex: 1, py: 4 }}>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-          <Route path="/doctors" element={<DoctorListPage />} />
-          <Route path="/doctors/:id" element={<DoctorProfilePage />} />
+    <Layout>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        <Route path="/doctors" element={<DoctorListPage />} />
+        <Route path="/doctors/:id" element={<DoctorProfilePage />} />
 
-          {/* Protected routes - require authentication */}
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          } />
-          <Route path="/profile/edit" element={
-            <ProtectedRoute>
-              <EditProfilePage />
-            </ProtectedRoute>
-          } />
+        {/* Protected routes - require authentication */}
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile/edit" element={
+          <ProtectedRoute>
+            <EditProfilePage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/appointments/book/:doctorId" element={
-            <ProtectedRoute>
-              <AppointmentBookingPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/appointments/book/:doctorId" element={
+          <ProtectedRoute>
+            <AppointmentBookingPage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/appointments/my" element={
-            <ProtectedRoute>
-              <MyAppointmentsPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/appointments/my" element={
+          <ProtectedRoute>
+            <MyAppointmentsPage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/consultation/:appointmentId" element={
-            <ProtectedRoute>
-              <ConsultationPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/consultation/:appointmentId" element={
+          <ProtectedRoute>
+            <ConsultationPage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/prescriptions" element={
-            <ProtectedRoute>
-              <PrescriptionListPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/prescriptions" element={
+          <ProtectedRoute>
+            <PrescriptionListPage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/payment/:appointmentId" element={
-            <ProtectedRoute>
-              <PaymentPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/payment/:appointmentId" element={
+          <ProtectedRoute>
+            <PaymentPage />
+          </ProtectedRoute>
+        } />
 
-          {/* Role-based routes */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          } />
+        {/* Role-based routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        } />
 
-          <Route path="/admin/dashboard" element={
-            <ProtectedRoute roles={['admin']}>
-              <AdminDashboardPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/users" element={
-            <ProtectedRoute roles={['admin']}>
-              <UserManagementPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/doctors" element={
-            <ProtectedRoute roles={['admin']}>
-              <AdminDoctorsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/patients" element={
-            <ProtectedRoute roles={['admin']}>
-              <AdminPatientsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/hospitals" element={
-            <ProtectedRoute roles={['admin']}>
-              <AdminHospitalsPage />
-            </ProtectedRoute>
-          } />
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminDashboardPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute roles={['admin']}>
+            <UserManagementPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/doctors" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminDoctorsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/patients" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminPatientsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/hospitals" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminHospitalsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/doctors/:id" element={
+          <ProtectedRoute roles={['admin']}>
+            <DoctorProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/patients/:id" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminPatientProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/hospitals/:id" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminHospitalProfilePage />
+          </ProtectedRoute>
+        } />
 
-          {/* 404 - Page not found */}
-          <Route path="*" element={
-            <Box sx={{ textAlign: 'center', mt: 4 }}>
-              <h1>404 - Page Not Found</h1>
-            </Box>
-          } />
-        </Routes>
-      </Container>
-      <Footer />
-    </Box>
+        {/* 404 - Page not found */}
+        <Route path="*" element={
+          <Box sx={{ textAlign: 'center', mt: 4 }}>
+            <h1>404 - Page Not Found</h1>
+          </Box>
+        } />
+      </Routes>
+    </Layout>
   )
 }
 

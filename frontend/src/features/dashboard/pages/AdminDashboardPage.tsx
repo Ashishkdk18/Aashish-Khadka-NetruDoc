@@ -1,12 +1,5 @@
 import React from 'react'
-import { Container, Typography, Box, Grid, Card, CardContent, CardActionArea, Button } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
-import {
-  People as PeopleIcon,
-  LocalHospital as HospitalIcon,
-  MedicalServices as DoctorIcon,
-  Person as PatientIcon
-} from '@mui/icons-material'
 
 const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate()
@@ -15,90 +8,80 @@ const AdminDashboardPage: React.FC = () => {
     {
       title: 'All Users',
       description: 'View and manage all users',
-      icon: <PeopleIcon sx={{ fontSize: 40 }} />,
+      icon: '👥',
       path: '/admin/users',
-      color: '#1976d2'
+      color: 'bg-blue-100 text-blue-800'
     },
     {
       title: 'Doctors',
       description: 'View and manage all doctors',
-      icon: <DoctorIcon sx={{ fontSize: 40 }} />,
+      icon: '👨‍⚕️',
       path: '/admin/doctors',
-      color: '#2e7d32'
+      color: 'bg-green-100 text-green-800'
     },
     {
       title: 'Patients',
       description: 'View and manage all patients',
-      icon: <PatientIcon sx={{ fontSize: 40 }} />,
+      icon: '🏥',
       path: '/admin/patients',
-      color: '#ed6c02'
+      color: 'bg-orange-100 text-orange-800'
     },
     {
       title: 'Hospitals',
       description: 'View and manage all hospitals',
-      icon: <HospitalIcon sx={{ fontSize: 40 }} />,
+      icon: '🏥',
       path: '/admin/hospitals',
-      color: '#d32f2f'
+      color: 'bg-red-100 text-red-800'
     }
   ]
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Admin Dashboard
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Manage users, doctors, patients, and hospitals
-      </Typography>
+    <div className="flex flex-col min-h-screen">
+      {/* Header Section */}
+      <section className="pt-32 pb-16 px-6 md:px-12">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12">
+            <span className="inline-block text-sm font-sans font-medium uppercase tracking-widest text-secondary mb-4">
+              <span className="mr-2 text-accent">+</span>
+              Admin Panel
+            </span>
+            <h1 className="text-5xl md:text-7xl font-display font-medium text-primary leading-[0.9] -ml-1">
+              Admin<br />
+              <span className="text-secondary opacity-60">Dashboard</span>
+            </h1>
+            <p className="text-lg text-secondary mt-6 max-w-2xl">
+              Manage users, doctors, patients, and hospitals
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <Grid container spacing={3}>
-        {adminCards.map((card) => (
-          <Grid item xs={12} sm={6} md={3} key={card.path}>
-            <Card
-              sx={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 6
-                }
-              }}
-            >
-              <CardActionArea
+      {/* Admin Cards Grid */}
+      <section className="pb-24 px-6 md:px-12">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {adminCards.map((card, index) => (
+              <div
+                key={card.path}
                 onClick={() => navigate(card.path)}
-                sx={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 3
-                }}
+                className="group bg-soft-blue/30 p-8 rounded-2xl hover:bg-soft-blue/40 transition-all duration-500 cursor-pointer hover:scale-105"
               >
-                <Box
-                  sx={{
-                    color: card.color,
-                    mb: 2
-                  }}
-                >
-                  {card.icon}
-                </Box>
-                <CardContent sx={{ textAlign: 'center', pt: 0 }}>
-                  <Typography variant="h6" component="h2" gutterBottom>
-                    {card.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {card.description}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Container>
+                <div className="space-y-6 text-center">
+                  <div className="flex items-center justify-center space-x-3">
+                    <span className="text-accent text-2xl group-hover:text-primary transition-colors duration-300">0{index + 1}</span>
+                    <span className="text-4xl">{card.icon}</span>
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-display font-medium text-primary group-hover:translate-x-2 transition-transform duration-300">{card.title}</h3>
+                    <p className="text-secondary leading-relaxed">{card.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
   )
 }
 

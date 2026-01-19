@@ -14,7 +14,7 @@ import {
   ProfileUpdate,
   ChangePasswordData,
   ForgotPasswordData,
-  ResetPasswordData
+
 } from '../models/authModels'
 
 class AuthApi {
@@ -65,8 +65,29 @@ class AuthApi {
   /**
    * Reset password (US7)
    */
-  async resetPassword(token: string, password: string): Promise<ApiResponse> {
-    return apiClient.put(`${this.basePath}/reset-password/${token}`, { password })
+  async resetPassword(email: string, otp: string, password: string): Promise<ApiResponse> {
+    return apiClient.put(`${this.basePath}/reset-password`, { email, otp, password })
+  }
+
+  /**
+   * Verify registration OTP
+   */
+  async verifyRegistrationOTP(email: string, otp: string): Promise<ApiResponse<LoginResponse>> {
+    return apiClient.post<LoginResponse>(`${this.basePath}/verify-registration-otp`, { email, otp })
+  }
+
+  /**
+   * Verify login OTP
+   */
+  async verifyLoginOTP(email: string, otp: string): Promise<ApiResponse<LoginResponse>> {
+    return apiClient.post<LoginResponse>(`${this.basePath}/verify-login-otp`, { email, otp })
+  }
+
+  /**
+   * Resend OTP
+   */
+  async resendOTP(email: string): Promise<ApiResponse<{ message: string }>> {
+    return apiClient.post<{ message: string }>(`${this.basePath}/resend-otp`, { email })
   }
 
   /**

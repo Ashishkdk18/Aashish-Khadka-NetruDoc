@@ -13,15 +13,17 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication
+// Public routes (no authentication required)
+router.get('/doctors', getDoctors);
+
+// All routes below require authentication
 router.use(protect);
 
 // Admin only routes
 router.get('/', authorize('admin'), getUsers);
-router.get('/doctors', getDoctors);
 router.get('/patients', authorize('admin'), getPatients);
 
-// Routes accessible by all authenticated users
+// User-specific routes (must come after specific routes to avoid conflicts)
 router.get('/:id', getUser);
 
 // Admin only routes for user management

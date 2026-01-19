@@ -10,7 +10,7 @@ export class BaseRepository {
   /**
    * Find all documents with optional query, pagination, and sorting
    * @param {Object} query - MongoDB query object
-   * @param {Object} options - Options for pagination, sorting, population
+   * @param {Object} options - Options for pagination, sorting, population, and search
    * @returns {Promise<Object>} - Object containing data and pagination info
    */
   async findAll(query = {}, options = {}) {
@@ -20,10 +20,24 @@ export class BaseRepository {
       sort = '-createdAt',
       select = '',
       populate = [],
-      skip = null
+      skip = null,
+      search = null
     } = options;
 
-    const queryBuilder = this.model.find(query);
+    let finalQuery = { ...query };
+
+    // Apply search functionality
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      const searchFields = this.getSearchFields ? this.getSearchFields() : ['name', 'email'];
+
+      finalQuery = {
+        ...finalQuery,
+        $or: searchFields.map(field => ({ [field]: searchRegex }))
+      };
+    }
+
+    const queryBuilder = this.model.find(finalQuery);
 
     // Apply select fields
     if (select) {
@@ -50,7 +64,7 @@ export class BaseRepository {
 
     const [data, total] = await Promise.all([
       queryBuilder.exec(),
-      this.model.countDocuments(query)
+      this.model.countDocuments(finalQuery)
     ]);
 
     return {
@@ -59,7 +73,7 @@ export class BaseRepository {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        totalPages: Math.ceil(total / parseInt(limit))
       }
     };
   }

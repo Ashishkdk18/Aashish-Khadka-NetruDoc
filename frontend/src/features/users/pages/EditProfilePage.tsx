@@ -25,7 +25,7 @@ import * as Yup from 'yup'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../../store'
 import { updateProfile, loadUser, changePassword } from '../../auth/authSlice'
-import { User, ProfileUpdate, Specialization } from '../../auth/models/authModels'
+import { ProfileUpdate, Specialization } from '../../auth/models/authModels'
 import dayjs, { Dayjs } from 'dayjs'
 
 const specializations: Specialization[] = [
@@ -56,7 +56,7 @@ const EditProfilePage: React.FC = () => {
     }
   }, [user, dispatch])
 
-  const profileFormik = useFormik<ProfileUpdate>({
+  const profileFormik = useFormik<any>({
     initialValues: {
       name: user?.name || '',
       email: user?.email || '',
@@ -93,7 +93,7 @@ const EditProfilePage: React.FC = () => {
     }),
     enableReinitialize: true,
     onSubmit: async (values) => {
-      const updateData: ProfileUpdate = {
+      const updateData: any = {
         name: values.name,
         email: values.email,
         phone: values.phone,
@@ -141,7 +141,7 @@ const EditProfilePage: React.FC = () => {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       }))
-      
+
       if (changePassword.rejected.match(result)) {
         setPasswordError(result.payload as string)
       } else {
@@ -188,7 +188,7 @@ const EditProfilePage: React.FC = () => {
         {tabValue === 0 && (
           <Box component="form" onSubmit={profileFormik.handleSubmit}>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   id="name"
@@ -198,11 +198,11 @@ const EditProfilePage: React.FC = () => {
                   onChange={profileFormik.handleChange}
                   onBlur={profileFormik.handleBlur}
                   error={profileFormik.touched.name && Boolean(profileFormik.errors.name)}
-                  helperText={profileFormik.touched.name && profileFormik.errors.name}
+                  helperText={profileFormik.touched.name && (profileFormik.errors.name as string)}
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   id="email"
@@ -212,11 +212,11 @@ const EditProfilePage: React.FC = () => {
                   onChange={profileFormik.handleChange}
                   onBlur={profileFormik.handleBlur}
                   error={profileFormik.touched.email && Boolean(profileFormik.errors.email)}
-                  helperText={profileFormik.touched.email && profileFormik.errors.email}
+                  helperText={profileFormik.touched.email && (profileFormik.errors.email as string)}
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   id="phone"
@@ -231,7 +231,7 @@ const EditProfilePage: React.FC = () => {
               {/* Patient-specific fields */}
               {user.role === 'patient' && (
                 <>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <LocalizationProvider dateAdapter={AdapterDayjs}>
                       <DatePicker
                         label="Date of Birth"
@@ -247,7 +247,7 @@ const EditProfilePage: React.FC = () => {
                     </LocalizationProvider>
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth>
                       <InputLabel id="gender-label">Gender</InputLabel>
                       <Select
@@ -265,13 +265,13 @@ const EditProfilePage: React.FC = () => {
                     </FormControl>
                   </Grid>
 
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
                       Emergency Contact
                     </Typography>
                   </Grid>
 
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       fullWidth
                       id="emergencyContactName"
@@ -286,7 +286,7 @@ const EditProfilePage: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       fullWidth
                       id="emergencyContactPhone"
@@ -301,7 +301,7 @@ const EditProfilePage: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       fullWidth
                       id="emergencyContactRelationship"
@@ -321,7 +321,7 @@ const EditProfilePage: React.FC = () => {
               {/* Doctor-specific fields */}
               {user.role === 'doctor' && (
                 <>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       id="licenseNumber"
@@ -332,7 +332,7 @@ const EditProfilePage: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth>
                       <InputLabel id="specialization-label">Specialization</InputLabel>
                       <Select
@@ -352,7 +352,7 @@ const EditProfilePage: React.FC = () => {
                     </FormControl>
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       id="experience"
@@ -364,7 +364,7 @@ const EditProfilePage: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       id="consultationFee"
@@ -376,7 +376,7 @@ const EditProfilePage: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <TextField
                       fullWidth
                       id="hospital"
@@ -390,13 +390,13 @@ const EditProfilePage: React.FC = () => {
               )}
 
               {/* Address fields */}
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
                   Address
                 </Typography>
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   id="street"
@@ -407,7 +407,7 @@ const EditProfilePage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   id="city"
@@ -418,7 +418,7 @@ const EditProfilePage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   id="state"
@@ -429,7 +429,7 @@ const EditProfilePage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   id="zipCode"
@@ -440,7 +440,7 @@ const EditProfilePage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   id="country"

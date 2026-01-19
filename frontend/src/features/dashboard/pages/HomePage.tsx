@@ -1,192 +1,101 @@
-import React from 'react'
-import {
-  Box,
-  Container,
-  Typography,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-} from '@mui/material'
-import {
-  LocalHospital,
-  VideoCall,
-  CalendarToday,
-  Payment,
-  Search,
-  Security,
-} from '@mui/icons-material'
-import { Link } from 'react-router-dom'
-import { useSelector } from 'react-redux'
-import { RootState } from '../../../store'
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../store'; // Adjust import path if needed
 
 const HomePage: React.FC = () => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-  const features = [
-    {
-      icon: <Search sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Find Doctors',
-      description: 'Search and book appointments with qualified healthcare professionals',
-      link: '/doctors',
-    },
-    {
-      icon: <CalendarToday sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Easy Booking',
-      description: 'Schedule appointments online with just a few clicks',
-      link: isAuthenticated ? '/doctors' : '/register',
-    },
-    {
-      icon: <VideoCall sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Video Consultations',
-      description: 'Connect with doctors through secure video calls from anywhere',
-      link: isAuthenticated ? '/dashboard' : '/register',
-    },
-    {
-      icon: <LocalHospital sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Digital Prescriptions',
-      description: 'Receive and manage prescriptions electronically',
-      link: isAuthenticated ? '/prescriptions' : '/register',
-    },
-    {
-      icon: <Payment sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Secure Payments',
-      description: 'Safe and secure payment processing for all services',
-      link: isAuthenticated ? '/dashboard' : '/register',
-    },
-    {
-      icon: <Security sx={{ fontSize: 40, color: 'primary.main' }} />,
-      title: 'Data Security',
-      description: 'Your health information is protected with industry-standard security',
-      link: '/register',
-    },
-  ]
 
   return (
-    <Box>
+    <div className="flex flex-col">
       {/* Hero Section */}
-      <Box
-        sx={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          py: 8,
-          textAlign: 'center',
-        }}
-      >
-        <Container maxWidth="md">
-          <Typography variant="h2" component="h1" gutterBottom>
-            Welcome to NetruDoc
-          </Typography>
-          <Typography variant="h5" component="p" gutterBottom>
-            Smart Healthcare Appointment & Consultation System
-          </Typography>
-          <Typography variant="body1" sx={{ mb: 4 }}>
-            Connect with qualified doctors, book appointments, and receive healthcare services from the comfort of your home.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              size="large"
-              component={Link}
-              to="/doctors"
-              sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: '#f5f5f5' } }}
-            >
-              Find Doctors
-            </Button>
-            {!isAuthenticated && (
-              <Button
-                variant="outlined"
-                size="large"
-                component={Link}
-                to="/register"
-                sx={{ borderColor: 'white', color: 'white', '&:hover': { borderColor: '#f5f5f5', bgcolor: 'rgba(255,255,255,0.1)' } }}
-              >
-                Get Started
-              </Button>
-            )}
-          </Box>
-        </Container>
-      </Box>
+      <section className="relative min-h-[90vh] flex flex-col justify-center px-4 md:px-0">
+        <div className="max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
+          <div className="md:col-span-8 space-y-8">
+            <span className="inline-block text-sm font-sans font-medium uppercase tracking-widest text-secondary">
+              <span className="mr-2 text-accent">+</span>
+              Healthcare reimagined
+            </span>
+            <h1 className="text-6xl md:text-8xl font-display font-medium text-primary leading-[0.9] -ml-1">
+              Advanced<br />
+              Medicine,<br />
+              <span className="text-secondary opacity-60">Personalized.</span>
+            </h1>
+            <div className="pt-8 flex flex-wrap gap-6">
+              <Link to="/doctors" className="inline-flex items-center space-x-2 text-lg font-medium border-b border-primary pb-1 hover:text-accent hover:border-accent transition-colors">
+                <span>Find a Specialist</span>
+                <span className="text-xl">→</span>
+              </Link>
+              {!isAuthenticated && (
+                <Link to="/register" className="inline-flex items-center space-x-2 text-lg font-medium border-b border-transparent pb-1 text-secondary hover:text-primary transition-colors">
+                  <span>Join NetruDoc</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
 
-      {/* Features Section */}
-      <Container sx={{ py: 8 }}>
-        <Typography variant="h3" component="h2" textAlign="center" gutterBottom>
-          Why Choose NetruDoc?
-        </Typography>
-        <Typography variant="body1" textAlign="center" color="text.secondary" sx={{ mb: 6 }}>
-          Experience healthcare like never before with our comprehensive digital platform
-        </Typography>
+        {/* Abstract visual element */}
+        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1/3 h-2/3 bg-gradient-to-b from-soft-blue to-transparent opacity-20 blur-3xl rounded-full -z-10" />
+      </section>
 
-        <Grid container spacing={4}>
-          {features.map((feature, index) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
-              <Card
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1, textAlign: 'center' }}>
-                  <Box sx={{ mb: 2 }}>
-                    {feature.icon}
-                  </Box>
-                  <Typography variant="h5" component="h3" gutterBottom>
-                    {feature.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {feature.description}
-                  </Typography>
-                </CardContent>
-                <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
-                  <Button
-                    size="small"
-                    component={Link}
-                    to={feature.link}
-                    variant="outlined"
-                  >
-                    Learn More
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
+      {/* Services Section - Split Layout */}
+      <section className="py-24 border-t border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+          <div className="p-12 md:p-24 bg-soft-blue/30 flex flex-col justify-center min-h-[600px]">
+            <span className="mb-6 text-sm font-sans font-medium uppercase tracking-widest text-secondary">
+              <span className="mr-2 text-accent">+</span> Services
+            </span>
+            <h2 className="text-4xl md:text-5xl font-display font-medium mb-8 text-primary">
+              Comprehensive<br />care for you.
+            </h2>
+            <p className="text-lg text-secondary max-w-md leading-relaxed">
+              Connect with top-tier medical professionals through our secure platform. From digital prescriptions to video consultations, we bridge the gap between you and better health.
+            </p>
+          </div>
+          <div className="relative min-h-[600px] bg-secondary/5 group overflow-hidden">
+            {/* Placeholder for a high-quality medical image */}
+            <img
+              src="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?ixlib=rb-4.0.3&auto=format&fit=crop&w=2091&q=80"
+              alt="Doctor consultation"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80"
+            />
+            <div className="absolute inset-0 bg-primary/10 group-hover:bg-transparent transition-colors duration-500" />
+          </div>
+        </div>
+      </section>
+
+      {/* Feature List */}
+      <section className="py-24 px-6 md:px-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
+          {[
+            { title: 'Video Consultations', desc: 'Secure, HD video calls with specialists from the comfort of your home.' },
+            { title: 'Digital Records', desc: 'Access your prescriptions and medical history anytime, anywhere.' },
+            { title: 'Instant Booking', desc: 'Real-time availability and immediate confirmation for all appointments.' }
+          ].map((feature, i) => (
+            <div key={i} className="space-y-4 group cursor-pointer">
+              <span className="block text-accent text-2xl group-hover:text-primary transition-colors duration-300">0{i + 1}</span>
+              <h3 className="text-2xl font-display font-medium text-primary group-hover:translate-x-2 transition-transform duration-300">{feature.title}</h3>
+              <p className="text-secondary leading-relaxed">{feature.desc}</p>
+            </div>
           ))}
-        </Grid>
-      </Container>
+        </div>
+      </section>
 
-      {/* Stats Section */}
-      <Box sx={{ bgcolor: 'grey.100', py: 6 }}>
-        <Container>
-          <Grid container spacing={4} textAlign="center">
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Typography variant="h3" color="primary" gutterBottom>
-                1000+
-              </Typography>
-              <Typography variant="h6">Registered Doctors</Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Typography variant="h3" color="primary" gutterBottom>
-                5000+
-              </Typography>
-              <Typography variant="h6">Happy Patients</Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Typography variant="h3" color="primary" gutterBottom>
-                15000+
-              </Typography>
-              <Typography variant="h6">Appointments Booked</Typography>
-            </Grid>
-          </Grid>
-        </Container>
-      </Box>
-    </Box>
-  )
-}
+      {/* CTA Section */}
+      <section className="py-32 text-center bg-primary text-white relative overflow-hidden">
+        <div className="relative z-10 max-w-2xl mx-auto px-6">
+          <h2 className="text-5xl md:text-7xl font-display font-medium mb-8">Ready to start?</h2>
+          <p className="text-xl text-gray-400 mb-12">Join thousands of patients experiencing the future of healthcare today.</p>
+          <Link to="/register" className="inline-block px-12 py-4 border border-white/20 hover:bg-white hover:text-primary transition-all duration-300 text-lg font-medium rounded-full">
+            Create Account
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+};
 
-export default HomePage
+export default HomePage;
+

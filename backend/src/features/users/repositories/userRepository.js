@@ -11,6 +11,14 @@ export class UserRepository extends BaseRepository {
   }
 
   /**
+   * Get search fields for this repository
+   * @returns {Array<String>} - Array of field names to search in
+   */
+  getSearchFields() {
+    return ['name', 'email', 'phone'];
+  }
+
+  /**
    * Find user by email
    * @param {String} email - User email
    * @param {Object} options - Options for selection

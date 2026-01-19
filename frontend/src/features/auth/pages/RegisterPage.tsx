@@ -30,7 +30,7 @@ import { useFormik } from 'formik'
 import * as Yup from 'yup'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../../store'
-import { register, clearError } from '../authSlice'
+import { register, verifyRegistrationOTP, resendOTP, clearError } from '../authSlice'
 import { PatientRegistrationData, DoctorRegistrationData, Specialization } from '../models/authModels'
 import { hospitalApi } from '../../hospitals/api'
 import { Hospital } from '../../hospitals/models/hospitalModels'
@@ -59,14 +59,72 @@ const RegisterPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [hospitalsLoading, setHospitalsLoading] = useState(false)
+  const [otpStep, setOtpStep] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpError, setOtpError] = useState('')
+  const [resendDisabled, setResendDisabled] = useState(false)
+  const [resendCountdown, setResendCountdown] = useState(0)
+  const [credentialFiles, setCredentialFiles] = useState<{[key: string]: File | null}>({
+    license: null,
+    degree: null,
+    certificate: null,
+    other: null
+  })
 
-  const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const { loading, error, isAuthenticated, otpRequired } = useSelector((state: RootState) => state.auth)
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  // Helper function to convert empty strings to undefined
+  const cleanValue = (value: any): any => {
+    if (value === null || value === undefined || value === '') return undefined;
+    if (typeof value === 'string') return value.trim() || undefined;
+    return value;
+  }
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB')
+        return
+      }
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+      if (!allowedTypes.includes(file.type)) {
+        alert('Only PDF, JPEG, JPG, and PNG files are allowed')
+        return
+      }
+      setCredentialFiles(prev => ({ ...prev, [type]: file }))
+    }
+  }
+
+  // Remove file
+  const removeFile = (type: string) => {
+    setCredentialFiles(prev => ({ ...prev, [type]: null }))
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard')
+      // Small delay to allow navbar to update with new auth state
+      const timer = setTimeout(() => {
+        navigate('/dashboard')
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [isAuthenticated, navigate])
+
+  // Handle successful registration (switch to OTP step) - moved after formik declaration
 
   useEffect(() => {
     dispatch(clearError())
@@ -154,54 +212,123 @@ const RegisterPage: React.FC = () => {
       }
     },
     onSubmit: async (values) => {
-      const { confirmPassword, dateOfBirth, ...submitData } = values
-
-      const address = {
-        street: submitData.street || undefined,
-        city: submitData.city || undefined,
-        state: submitData.state || undefined,
-        zipCode: submitData.zipCode || undefined,
-        country: submitData.country || 'Nepal',
-      }
-
-      if (submitData.role === 'patient') {
-        const patientData: PatientRegistrationData = {
-          name: submitData.name,
-          email: submitData.email,
-          password: submitData.password,
-          role: 'patient',
-          phone: submitData.phone || undefined,
-          address: Object.keys(address).length > 0 ? address : undefined,
-          dateOfBirth: dateOfBirth ? dateOfBirth.toISOString() : undefined,
-          gender: submitData.gender || undefined,
-          emergencyContact: submitData.emergencyContactName
-            ? {
-              name: submitData.emergencyContactName,
-              phone: submitData.emergencyContactPhone,
-              relationship: submitData.emergencyContactRelationship,
-            }
-            : undefined,
-        }
-        await dispatch(register(patientData))
+      // Only allow submission in OTP step or on the final registration step
+      if (otpStep) {
+        // Handle OTP verification
+        await handleOTPVerification(values.email)
+      } else if (!otpStep && activeStep === steps.length - 1) {
+        // Only handle registration on the final step (Address)
+        await handleInitialRegistration(values)
       } else {
-        const doctorData: DoctorRegistrationData = {
-          name: submitData.name,
-          email: submitData.email,
-          password: submitData.password,
-          role: 'doctor',
-          phone: submitData.phone || undefined,
-          address: Object.keys(address).length > 0 ? address : undefined,
-          licenseNumber: submitData.licenseNumber,
-          specialization: submitData.specialization as Specialization,
-          qualifications: submitData.qualifications.length > 0 ? submitData.qualifications : undefined,
-          experience: submitData.experience || undefined,
-          hospital: submitData.hospital || undefined,
-          consultationFee: submitData.consultationFee || undefined,
-        }
-        await dispatch(register(doctorData))
+        // Prevent submission on intermediate steps - do nothing
+        return
       }
     },
   })
+
+  // Handle successful registration (switch to OTP step)
+  useEffect(() => {
+    if (otpRequired && !otpStep) {
+      // Registration was successful and OTP is required, switch to OTP verification step
+      setOtpStep(true)
+      setActiveStep(0) // Reset stepper for OTP step
+    }
+  }, [otpRequired, otpStep])
+
+  // Handle initial registration (send OTP)
+  const handleInitialRegistration = async (values: typeof formik.values) => {
+    const { confirmPassword, dateOfBirth, ...submitData } = values
+
+    // Build address object only with defined, non-empty values
+    const address: any = {};
+    if (submitData.street?.trim()) address.street = submitData.street.trim();
+    if (submitData.city?.trim()) address.city = submitData.city.trim();
+    if (submitData.state?.trim()) address.state = submitData.state.trim();
+    if (submitData.zipCode?.trim()) address.zipCode = submitData.zipCode.trim();
+    address.country = submitData.country || 'Nepal';
+
+    // Check if address has meaningful data (more than just country)
+    const hasAddressData = address.street || address.city || address.state || address.zipCode;
+
+    // Prepare qualification documents for doctors
+    let qualificationDocuments: any[] = []
+    if (submitData.role === 'doctor') {
+      for (const [type, file] of Object.entries(credentialFiles)) {
+        if (file) {
+          try {
+            const base64 = await fileToBase64(file)
+            qualificationDocuments.push({
+              name: file.name,
+              url: base64,
+              type: type,
+              uploadedAt: new Date().toISOString()
+            })
+          } catch (error) {
+            console.error('Error converting file to base64:', error)
+          }
+        }
+      }
+    }
+
+    if (submitData.role === 'patient') {
+      if (loading) return; // Prevent duplicate submissions during loading
+      const patientData: PatientRegistrationData = {
+        name: submitData.name,
+        email: submitData.email,
+        password: submitData.password,
+        role: 'patient',
+        phone: cleanValue(submitData.phone),
+        address: hasAddressData ? address : undefined,
+        dateOfBirth: dateOfBirth ? dateOfBirth.toISOString() : undefined,
+        gender: cleanValue(submitData.gender),
+        emergencyContact: submitData.emergencyContactName && submitData.emergencyContactPhone
+          ? {
+            name: submitData.emergencyContactName.trim(),
+            phone: submitData.emergencyContactPhone.trim(),
+            relationship: submitData.emergencyContactRelationship?.trim() || '',
+          }
+          : undefined,
+      }
+      await dispatch(register(patientData))
+    } else {
+      if (loading) return; // Prevent duplicate submissions during loading
+      const doctorData: DoctorRegistrationData = {
+        name: submitData.name,
+        email: submitData.email,
+        password: submitData.password,
+        role: 'doctor',
+        phone: cleanValue(submitData.phone),
+        address: hasAddressData ? address : undefined,
+        licenseNumber: submitData.licenseNumber,
+        specialization: submitData.specialization as Specialization,
+        qualifications: submitData.qualifications.length > 0 ? submitData.qualifications : undefined,
+        experience: submitData.experience || undefined,
+        hospital: submitData.hospital || undefined,
+        consultationFee: submitData.consultationFee || undefined,
+        qualificationDocuments: qualificationDocuments.length > 0 ? qualificationDocuments : undefined,
+      }
+      await dispatch(register(doctorData))
+    }
+  }
+
+  // Handle OTP verification
+  const handleOTPVerification = async (email: string) => {
+    if (!otpCode.trim()) {
+      setOtpError('Please enter the verification code')
+      return
+    }
+
+    try {
+      const result = await dispatch(verifyRegistrationOTP({ email, otp: otpCode }))
+      if (verifyRegistrationOTP.fulfilled.match(result)) {
+        setOtpError('')
+      } else {
+        setOtpError(result.payload as string || 'Invalid verification code')
+      }
+    } catch (error: any) {
+      setOtpError(error.message || 'Invalid verification code')
+    }
+  }
 
   // Fetch hospitals when component mounts or role changes to doctor
   useEffect(() => {
@@ -237,9 +364,52 @@ const RegisterPage: React.FC = () => {
     formik.setFieldTouched('role', false)
   }
 
-  const steps = ['Basic Information', formik.values.role === 'doctor' ? 'Professional Details' : 'Medical Information', 'Address']
+  const steps = otpStep
+    ? ['Email Verification']
+    : ['Basic Information', formik.values.role === 'doctor' ? 'Professional Details' : 'Medical Information', 'Address']
 
-  const getStepContent = (step: number) => {
+
+    const getStepContent = (step: number) => {
+   
+      if (otpStep) {
+        // Show OTP verification UI
+        return (
+          <Box>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Verify Your Email
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+              We've sent a 6-digit verification code to your email address. Please enter it below to complete your registration.
+            </Typography>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="otp"
+              label="Verification Code"
+              name="otp"
+              value={otpCode}
+              onChange={(e) => {
+                setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setOtpError('')
+              }}
+              error={!!otpError}
+              helperText={otpError}
+              inputProps={{ maxLength: 6 }}
+            />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+              <Button
+                variant="text"
+                onClick={handleResendOTP}
+                disabled={resendDisabled}
+                sx={{ textTransform: 'none' }}
+              >
+                {resendDisabled ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+              </Button>
+            </Box>
+          </Box>
+        )
+      }
     switch (step) {
       case 0:
         return (
@@ -458,6 +628,109 @@ const RegisterPage: React.FC = () => {
                 error={formik.touched.consultationFee && Boolean(formik.errors.consultationFee)}
                 helperText={formik.touched.consultationFee && formik.errors.consultationFee}
               />
+
+              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                Professional Credentials (Optional)
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                Upload your professional documents. Maximum 5MB per file. Supported formats: PDF, JPEG, PNG.
+              </Typography>
+
+              {/* License Document */}
+              <Box sx={{ mb: 2 }}>
+                <input
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  id="license-upload"
+                  type="file"
+                  onChange={(e) => handleFileUpload(e, 'license')}
+                />
+                <label htmlFor="license-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    fullWidth
+                    startIcon={<span>📄</span>}
+                    sx={{ justifyContent: 'flex-start', mb: 1 }}
+                  >
+                    Upload License Document
+                  </Button>
+                </label>
+                {credentialFiles.license && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                      {credentialFiles.license.name}
+                    </Typography>
+                    <Button size="small" color="error" onClick={() => removeFile('license')}>
+                      Remove
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Degree Certificate */}
+              <Box sx={{ mb: 2 }}>
+                <input
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  id="degree-upload"
+                  type="file"
+                  onChange={(e) => handleFileUpload(e, 'degree')}
+                />
+                <label htmlFor="degree-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    fullWidth
+                    startIcon={<span>🎓</span>}
+                    sx={{ justifyContent: 'flex-start', mb: 1 }}
+                  >
+                    Upload Degree Certificate
+                  </Button>
+                </label>
+                {credentialFiles.degree && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                      {credentialFiles.degree.name}
+                    </Typography>
+                    <Button size="small" color="error" onClick={() => removeFile('degree')}>
+                      Remove
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Other Certificates */}
+              <Box sx={{ mb: 2 }}>
+                <input
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  id="certificate-upload"
+                  type="file"
+                  onChange={(e) => handleFileUpload(e, 'certificate')}
+                />
+                <label htmlFor="certificate-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    fullWidth
+                    startIcon={<span>🏆</span>}
+                    sx={{ justifyContent: 'flex-start', mb: 1 }}
+                  >
+                    Upload Other Certificates
+                  </Button>
+                </label>
+                {credentialFiles.certificate && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                      {credentialFiles.certificate.name}
+                    </Typography>
+                    <Button size="small" color="error" onClick={() => removeFile('certificate')}>
+                      Remove
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             </Box>
           )
         } else {
@@ -606,21 +879,99 @@ const RegisterPage: React.FC = () => {
           </Box>
         )
 
+      case 3:
+        return (
+          <Box>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Verify Your Email
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+              We've sent a 6-digit verification code to your email address. Please enter it below to complete your registration.
+            </Typography>
+
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="otp"
+              label="Verification Code"
+              name="otp"
+              value={otpCode}
+              onChange={(e) => {
+                setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setOtpError('')
+              }}
+              error={!!otpError}
+              helperText={otpError}
+              inputProps={{ maxLength: 6 }}
+            />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+              <Button
+                variant="text"
+                onClick={handleResendOTP}
+                disabled={resendDisabled}
+                sx={{ textTransform: 'none' }}
+              >
+                {resendDisabled ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+              </Button>
+            </Box>
+          </Box>
+        )
+
       default:
         return null
     }
   }
 
+  // Handle OTP resend
+  const handleResendOTP = async () => {
+    setResendDisabled(true)
+    setResendCountdown(60)
+
+    const countdown = setInterval(() => {
+      setResendCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdown)
+          setResendDisabled(false)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    try {
+      await dispatch(resendOTP(formik.values.email))
+    } catch (error) {
+      console.error('Failed to resend OTP:', error)
+      setOtpError('Failed to resend verification code. Please try again.')
+    }
+  }
+
+  // Helper function to get fields for each step
+  const getStepFields = (step: number): string[] => {
+    if (step === 0) return ['name', 'email', 'password', 'confirmPassword', 'role'];
+    if (step === 1) {
+      return formik.values.role === 'doctor'
+        ? ['licenseNumber', 'specialization']
+        : ['dateOfBirth', 'gender']; // Optional fields, but validate if filled
+    }
+    if (step === 2) return ['street', 'city', 'zipCode']; // Address fields
+    return [];
+  };
+
   const handleNext = () => {
-    if (activeStep === 0) {
-      // Validate basic info
-      const fields = ['name', 'email', 'password', 'confirmPassword', 'role']
-      fields.forEach((field) => formik.setFieldTouched(field, true))
-      if (formik.values.name && formik.values.email && formik.values.password && formik.values.confirmPassword && formik.values.role) {
-        setActiveStep(activeStep + 1)
-      }
-    } else {
-      setActiveStep(activeStep + 1)
+    // Validate current step before proceeding
+    const currentStepFields = getStepFields(activeStep);
+    currentStepFields.forEach((field) => formik.setFieldTouched(field, true));
+
+    // Check if current step is valid
+    const stepErrors = currentStepFields.filter(
+      field => formik.errors[field as keyof typeof formik.errors]
+    );
+
+    if (stepErrors.length === 0) {
+      setActiveStep(activeStep + 1);
     }
   }
 
@@ -644,7 +995,7 @@ const RegisterPage: React.FC = () => {
           </Alert>
         )}
 
-        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+        <Stepper activeStep={otpStep ? 0 : activeStep} sx={{ mb: 4 }}>
           {steps.map((label) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
@@ -652,21 +1003,45 @@ const RegisterPage: React.FC = () => {
           ))}
         </Stepper>
 
-        <Box component="form" onSubmit={formik.handleSubmit}>
+        <Box
+          component="form"
+          onSubmit={(e) => {
+            e.preventDefault(); // Prevent any accidental form submissions
+          }}
+        >
           {getStepContent(activeStep)}
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-            <Button disabled={activeStep === 0} onClick={handleBack}>
-              Back
-            </Button>
-            {activeStep < steps.length - 1 ? (
-              <Button variant="contained" onClick={handleNext}>
-                Next
-              </Button>
+            {otpStep ? (
+              <>
+                <Button type="button" onClick={() => setOtpStep(false)} disabled={loading}>
+                  Back to Registration
+                </Button>
+                <Button type="button" variant="contained" disabled={loading || otpCode.length !== 6} onClick={() => {
+                  formik.handleSubmit();
+                }}>
+                  {loading ? <CircularProgress size={24} /> : 'Verify & Complete'}
+                </Button>
+              </>
             ) : (
-              <Button type="submit" variant="contained" disabled={loading}>
-                {loading ? <CircularProgress size={24} /> : 'Create Account'}
-              </Button>
+              <>
+                <Button type="button" disabled={activeStep === 0} onClick={handleBack}>
+                  Back
+                </Button>
+                {activeStep < steps.length - 1 ? (
+                  <Button type="button" variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
+                ) : (
+                  <Button type="button" variant="contained" disabled={loading} onClick={() => {
+                    if (activeStep === steps.length - 1) {
+                      formik.handleSubmit();
+                    }
+                  }}>
+                    {loading ? <CircularProgress size={24} /> : 'Send Verification Code'}
+                  </Button>
+                )}
+              </>
             )}
           </Box>
 

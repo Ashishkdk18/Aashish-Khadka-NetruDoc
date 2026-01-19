@@ -17,13 +17,16 @@ export class UserService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getUsers(filters = {}, pagination = {}) {
+    const { search, ...queryFilters } = filters;
+
     const options = {
       page: pagination.page || 1,
       limit: pagination.limit || 10,
-      sort: pagination.sort || '-createdAt'
+      sort: pagination.sort || '-createdAt',
+      search: search
     };
 
-    return this.repository.findAll(filters, options);
+    return this.repository.findAll(queryFilters, options);
   }
 
   /**
@@ -60,13 +63,21 @@ export class UserService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getDoctors(pagination = {}) {
+    const { search, specialization, ...paginationOptions } = pagination;
+
+    const query = { role: 'doctor', isActive: true };
+    if (specialization) {
+      query.specialization = specialization;
+    }
+
     const options = {
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
-      sort: pagination.sort || '-rating'
+      page: paginationOptions.page || 1,
+      limit: paginationOptions.limit || 10,
+      sort: paginationOptions.sort || '-rating',
+      search: search
     };
 
-    return this.repository.getDoctors(options);
+    return this.repository.findAll(query, options);
   }
 
   /**
@@ -75,13 +86,18 @@ export class UserService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getPatients(pagination = {}) {
+    const { search, ...paginationOptions } = pagination;
+
+    const query = { role: 'patient', isActive: true };
+
     const options = {
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
-      sort: pagination.sort || '-createdAt'
+      page: paginationOptions.page || 1,
+      limit: paginationOptions.limit || 10,
+      sort: paginationOptions.sort || '-createdAt',
+      search: search
     };
 
-    return this.repository.getPatients(options);
+    return this.repository.findAll(query, options);
   }
 
   /**

@@ -39,11 +39,24 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
 
+    // Check if result is OTP-required response or direct login
+    if (result.message && result.email && !result.token) {
+      // OTP required - email verification needed
+      return res.status(200).json(successResponse(result.message, {
+        email: result.email,
+        userId: result.userId
+      }));
+    }
+
+    // Direct login success
     res.status(200).json(successResponse(RESPONSE_MESSAGES.LOGIN_SUCCESS, result));
   } catch (error) {
     console.error(error);
     if (error.message === 'Invalid credentials') {
       return res.status(401).json(errorResponse(error.message));
+    }
+    if (error.message.includes('deactivated') || error.message.includes('pending admin verification')) {
+      return res.status(403).json(errorResponse(error.message));
     }
     res.status(500).json(errorResponse('Server error during login'));
   }
@@ -130,21 +143,92 @@ export const forgotPassword = async (req, res) => {
 };
 
 // @desc    Reset password
-// @route   PUT /api/auth/reset-password/:token
+// @route   PUT /api/auth/reset-password
 // @access  Public
 export const resetPassword = async (req, res) => {
   try {
-    if (!req.body.password) {
-      return res.status(400).json(errorResponse('Password is required'));
+    const { email, otp, password } = req.body;
+
+    if (!email || !otp || !password) {
+      return res.status(400).json(errorResponse('Email, OTP, and password are required'));
     }
 
-    await authService.resetPassword(req.params.token, req.body.password);
-    res.status(200).json(successResponse('Password reset successfully'));
+    const result = await authService.resetPassword(email, otp, password);
+    res.status(200).json(successResponse(result.message));
   } catch (error) {
     console.error(error);
-    if (error.message === 'Invalid or expired reset token') {
+    if (error.message === 'Invalid or expired OTP') {
       return res.status(400).json(errorResponse(error.message));
     }
+    if (error.message === 'User not found') {
+      return res.status(404).json(errorResponse(error.message));
+    }
     res.status(500).json(errorResponse('Failed to reset password'));
+  }
+};
+
+// @desc    Verify registration OTP
+// @route   POST /api/auth/verify-registration-otp
+// @access  Public
+export const verifyRegistrationOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json(errorResponse('Email and OTP are required'));
+    }
+
+    const result = await authService.verifyRegistrationOTP(email, otp);
+    res.status(200).json(successResponse('Registration completed successfully', result));
+  } catch (error) {
+    console.error(error);
+    if (error.message === 'Invalid or expired OTP') {
+      return res.status(400).json(errorResponse(error.message));
+    }
+    if (error.message === 'Email already verified') {
+      return res.status(400).json(errorResponse(error.message));
+    }
+    res.status(500).json(errorResponse('Failed to verify registration'));
+  }
+};
+
+// @desc    Resend registration OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+export const resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json(errorResponse('Email is required'));
+    }
+
+    const result = await authService.resendRegistrationOTP(email);
+    res.status(200).json(successResponse(result.message));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json(errorResponse('Failed to resend verification code'));
+  }
+};
+
+// @desc    Verify login OTP
+// @route   POST /api/auth/verify-login-otp
+// @access  Public
+export const verifyLoginOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json(errorResponse('Email and OTP are required'));
+    }
+
+    const result = await authService.verifyLoginOTP(email, otp);
+    res.status(200).json(successResponse('Login successful', result));
+  } catch (error) {
+    console.error(error);
+    if (error.message === 'Invalid or expired OTP') {
+      return res.status(400).json(errorResponse(error.message));
+    }
+    res.status(500).json(errorResponse('Failed to verify login'));
   }
 };

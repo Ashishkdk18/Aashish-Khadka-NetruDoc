@@ -8,7 +8,12 @@ const userService = new UserService();
 // @access  Private (Admin only)
 export const getUsers = async (req, res) => {
   try {
-    const result = await userService.getUsers({}, {
+    const filters = {};
+    if (req.query.search) filters.search = req.query.search;
+    if (req.query.role) filters.role = req.query.role;
+    if (req.query.isActive !== undefined) filters.isActive = req.query.isActive === 'true';
+
+    const result = await userService.getUsers(filters, {
       page: req.query.page || 1,
       limit: req.query.limit || 10
     });
@@ -86,7 +91,8 @@ export const getDoctors = async (req, res) => {
     const result = await userService.getDoctors({
       page: req.query.page || 1,
       limit: req.query.limit || 10,
-      specialization: req.query.specialization
+      specialization: req.query.specialization,
+      search: req.query.search
     });
 
     res.status(200).json(paginatedSuccessResponse(
@@ -107,7 +113,8 @@ export const getPatients = async (req, res) => {
   try {
     const result = await userService.getPatients({
       page: req.query.page || 1,
-      limit: req.query.limit || 10
+      limit: req.query.limit || 10,
+      search: req.query.search
     });
 
     res.status(200).json(paginatedSuccessResponse(

@@ -124,7 +124,14 @@ const userSchema = new mongoose.Schema({
   },
   emailVerificationToken: String,
   passwordResetToken: String,
-  passwordResetExpires: Date
+  passwordResetExpires: Date,
+  // OTP fields
+  otpCode: String,
+  otpExpires: Date,
+  otpType: {
+    type: String,
+    enum: ['registration', 'login', 'password-reset']
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -132,10 +139,9 @@ const userSchema = new mongoose.Schema({
 });
 
 // Encrypt password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
   // Only run this function if password was actually modified
-  if (!this.isModified('password')) return next();
-
+  if (!this.isModified('password')) return;
   // Hash password with cost of 12
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
@@ -158,6 +164,42 @@ userSchema.methods.getResetPasswordToken = function() {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
   return resetToken;
+};
+
+// Generate OTP for authentication
+userSchema.methods.generateOTP = function(type) {
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Set OTP fields
+  this.otpCode = otp;
+  this.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  this.otpType = type;
+
+  return otp;
+};
+
+// Verify OTP code
+userSchema.methods.verifyOTP = function(code) {
+  // Check if OTP exists and hasn't expired
+  if (!this.otpCode || !this.otpExpires) {
+    return false;
+  }
+
+  // Check if OTP has expired
+  if (Date.now() > this.otpExpires) {
+    return false;
+  }
+
+  // Check if OTP matches
+  return this.otpCode === code;
+};
+
+// Clear OTP after successful verification
+userSchema.methods.clearOTP = function() {
+  this.otpCode = undefined;
+  this.otpExpires = undefined;
+  this.otpType = undefined;
 };
 
 // Virtual for full address

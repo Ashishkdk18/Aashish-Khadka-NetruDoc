@@ -25,6 +25,228 @@ export const adminUser = {
   emailVerified: true
 };
 
+// Sample doctor users
+export const sampleDoctors = [
+  {
+    name: 'Dr. Rajesh Sharma',
+    email: 'rajesh.sharma@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-2345678',
+    address: {
+      street: 'Thamel',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'cardiology',
+    licenseNumber: 'DOC-001-2025',
+    experience: 12,
+    qualifications: ['MBBS', 'MD Cardiology', 'Fellowship in Interventional Cardiology'],
+    qualificationDocuments: [
+      {
+        name: 'Medical License.pdf',
+        url: 'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPD4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+Pgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvSGVsdmV0aWNhCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCi9GMSAxMiBUZgoxMDAgNzAwIFRkCihTYW1wbGUgTGljZW5zZSBEb2N1bWVudCkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTAxIDAwMDAwIG4gCjAwMDAwMDAxNzAgMDAwMDAgbiAKMDAwMDAwMDIxOCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDYKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjI5NAolJUVPRgo=',
+        type: 'license',
+        uploadedAt: new Date('2024-01-15')
+      },
+      {
+        name: 'MD_Degree.pdf',
+        url: 'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPD4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+Pgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvSGVsdmV0aWNhCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCi9GMSAxMiBUZgoxMDAgNzAwIFRkCihTYW1wbGUgTURfRGVncmVlKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU0IDAwMDAwIG4gCjAwMDAwMDAxMDEgMDAwMDAgbiAKMDAwMDAwMDE3MCAwMDAwMCBuIAowMDAwMDAwMjE4IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNgovUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKMjk0CiUlRU9G',
+        type: 'degree',
+        uploadedAt: new Date('2020-06-20')
+      }
+    ],
+    hospital: 'Bir Hospital',
+    consultationFee: 1500,
+    availability: {
+      monday: { start: '09:00', end: '17:00', available: true },
+      tuesday: { start: '09:00', end: '17:00', available: true },
+      wednesday: { start: '09:00', end: '17:00', available: true },
+      thursday: { start: '09:00', end: '17:00', available: true },
+      friday: { start: '09:00', end: '17:00', available: true },
+      saturday: { start: '09:00', end: '12:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.8,
+    totalReviews: 45,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  },
+  {
+    name: 'Dr. Priya Thapa',
+    email: 'priya.thapa@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-3456789',
+    address: {
+      street: 'Lazimpat',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'pediatrics',
+    licenseNumber: 'DOC-002-2025',
+    experience: 8,
+    qualifications: ['MBBS', 'MD Pediatrics', 'Diploma in Child Health'],
+    hospital: 'Patan Hospital',
+    consultationFee: 1200,
+    availability: {
+      monday: { start: '10:00', end: '16:00', available: true },
+      tuesday: { start: '10:00', end: '16:00', available: true },
+      wednesday: { start: '10:00', end: '16:00', available: true },
+      thursday: { start: '10:00', end: '16:00', available: true },
+      friday: { start: '10:00', end: '16:00', available: true },
+      saturday: { start: '10:00', end: '13:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.9,
+    totalReviews: 32,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  },
+  {
+    name: 'Dr. Sunil Rai',
+    email: 'sunil.rai@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-4567890',
+    address: {
+      street: 'New Road',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'orthopedics',
+    licenseNumber: 'DOC-003-2025',
+    experience: 15,
+    qualifications: ['MBBS', 'MS Orthopedics', 'Fellowship in Joint Replacement'],
+    hospital: 'Nepal Orthopedic Hospital',
+    consultationFee: 1800,
+    availability: {
+      monday: { start: '08:00', end: '16:00', available: true },
+      tuesday: { start: '08:00', end: '16:00', available: true },
+      wednesday: { start: '08:00', end: '16:00', available: true },
+      thursday: { start: '08:00', end: '16:00', available: true },
+      friday: { start: '08:00', end: '16:00', available: true },
+      saturday: { start: '08:00', end: '11:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.7,
+    totalReviews: 28,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  },
+  {
+    name: 'Dr. Anjali Pokhrel',
+    email: 'anjali.pokhrel@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-5678901',
+    address: {
+      street: 'Putalisadak',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'dermatology',
+    licenseNumber: 'DOC-004-2025',
+    experience: 10,
+    qualifications: ['MBBS', 'MD Dermatology', 'Diploma in Cosmetic Dermatology'],
+    hospital: 'Kathmandu Medical College',
+    consultationFee: 1400,
+    availability: {
+      monday: { start: '11:00', end: '18:00', available: true },
+      tuesday: { start: '11:00', end: '18:00', available: true },
+      wednesday: { start: '11:00', end: '18:00', available: true },
+      thursday: { start: '11:00', end: '18:00', available: true },
+      friday: { start: '11:00', end: '18:00', available: true },
+      saturday: { start: '11:00', end: '15:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.6,
+    totalReviews: 41,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  },
+  {
+    name: 'Dr. Binod Shrestha',
+    email: 'binod.shrestha@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-6789012',
+    address: {
+      street: 'Chabahil',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'general-medicine',
+    licenseNumber: 'DOC-005-2025',
+    experience: 20,
+    qualifications: ['MBBS', 'MD Internal Medicine', 'Fellowship in Family Medicine'],
+    hospital: 'Grande International Hospital',
+    consultationFee: 1000,
+    availability: {
+      monday: { start: '09:00', end: '17:00', available: true },
+      tuesday: { start: '09:00', end: '17:00', available: true },
+      wednesday: { start: '09:00', end: '17:00', available: true },
+      thursday: { start: '09:00', end: '17:00', available: true },
+      friday: { start: '09:00', end: '17:00', available: true },
+      saturday: { start: '09:00', end: '12:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.5,
+    totalReviews: 67,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  },
+  {
+    name: 'Dr. Maya Gurung',
+    email: 'maya.gurung@netrudoc.com',
+    password: 'Doctor@123',
+    role: 'doctor',
+    phone: '+977-1-7890123',
+    address: {
+      street: 'Bouddha',
+      city: 'Kathmandu',
+      state: 'Bagmati',
+      zipCode: '44600',
+      country: 'Nepal'
+    },
+    specialization: 'gynecology',
+    licenseNumber: 'DOC-006-2025',
+    experience: 14,
+    qualifications: ['MBBS', 'MD Gynecology', 'Fellowship in Reproductive Medicine'],
+    hospital: 'Norvic International Hospital',
+    consultationFee: 1600,
+    availability: {
+      monday: { start: '10:00', end: '16:00', available: true },
+      tuesday: { start: '10:00', end: '16:00', available: true },
+      wednesday: { start: '10:00', end: '16:00', available: true },
+      thursday: { start: '10:00', end: '16:00', available: true },
+      friday: { start: '10:00', end: '16:00', available: true },
+      saturday: { start: '10:00', end: '14:00', available: true },
+      sunday: { start: '', end: '', available: false }
+    },
+    rating: 4.9,
+    totalReviews: 53,
+    isActive: true,
+    isVerified: true,
+    emailVerified: true
+  }
+];
+
 // Nepali hospitals data
 export const nepaliHospitals = [
   {

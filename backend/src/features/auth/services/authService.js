@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { AuthRepository } from '../repositories/authRepository.js';
 import { UserService } from '../../users/services/userService.js';
 import User from '../../users/models/userModel.js';
+import emailService from '../../../utils/emailService.js';
 
 /**
  * Auth Service
@@ -31,7 +32,7 @@ export class AuthService {
   }
 
   /**
-   * Register new user
+   * Register new user - sends OTP instead of creating account immediately
    * @param {Object} userData - User registration data
    * @returns {Promise<Object>}
    */
@@ -44,26 +45,7 @@ export class AuthService {
       throw new Error('User already exists');
     }
 
-    // Prepare user data based on role
-    // Note: Password will be hashed by the User model's pre('save') hook
-    const userPayload = {
-      name,
-      email,
-      password, // Pass plain password - will be hashed by pre-save hook
-      role: role || 'patient',
-      phone,
-      address
-    };
-
-    // Add patient-specific fields (US1)
-    if (role === 'patient') {
-      if (userData.dateOfBirth) userPayload.dateOfBirth = userData.dateOfBirth;
-      if (userData.gender) userPayload.gender = userData.gender;
-      if (userData.emergencyContact) userPayload.emergencyContact = userData.emergencyContact;
-      if (userData.medicalHistory) userPayload.medicalHistory = userData.medicalHistory;
-    }
-
-    // Add doctor-specific fields (US2)
+    // Validate doctor-specific requirements
     if (role === 'doctor') {
       if (!userData.licenseNumber) {
         throw new Error('License number is required for doctor registration');
@@ -71,7 +53,32 @@ export class AuthService {
       if (!userData.specialization) {
         throw new Error('Specialization is required for doctor registration');
       }
-      
+    }
+
+    // Create temporary user record with emailVerified: false
+    const userPayload = {
+      name,
+      email,
+      password,
+      role: role || 'patient',
+      phone,
+      address,
+      emailVerified: false
+    };
+
+    // Add patient-specific fields
+    if (role === 'patient') {
+      if (userData.dateOfBirth) {
+        // Convert ISO string to Date object
+        userPayload.dateOfBirth = new Date(userData.dateOfBirth);
+      }
+      if (userData.gender) userPayload.gender = userData.gender;
+      if (userData.emergencyContact) userPayload.emergencyContact = userData.emergencyContact;
+      if (userData.medicalHistory) userPayload.medicalHistory = userData.medicalHistory;
+    }
+
+    // Add doctor-specific fields
+    if (role === 'doctor') {
       userPayload.licenseNumber = userData.licenseNumber;
       userPayload.specialization = userData.specialization;
       userPayload.qualifications = userData.qualifications || [];
@@ -80,37 +87,33 @@ export class AuthService {
       userPayload.consultationFee = userData.consultationFee || 0;
       userPayload.availability = userData.availability;
       userPayload.qualificationDocuments = userData.qualificationDocuments || [];
-      
-      // Doctor needs admin verification
-      userPayload.isVerified = false;
+      userPayload.isVerified = false; // Doctor needs admin verification
     }
 
-    // Create user
+    // Create user (password will be hashed by pre-save hook)
     const user = await this.userService.createUser(userPayload);
 
-    // Generate token
-    const token = this.generateToken(user._id);
+    // Generate and send OTP
+    const otp = user.generateOTP('registration');
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await emailService.sendRegistrationOTP(email, otp);
+    } catch (error) {
+      // If email fails, delete the temporary user record
+      await this.userService.deleteUser(user._id);
+      throw new Error('Failed to send verification email. Please try again.');
+    }
 
     return {
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        address: user.address,
-        ...(role === 'doctor' && {
-          specialization: user.specialization,
-          licenseNumber: user.licenseNumber,
-          isVerified: user.isVerified
-        })
-      }
+      message: 'Registration initiated. Please check your email for verification code.',
+      userId: user._id,
+      email: user.email
     };
   }
 
   /**
-   * Login user
+   * Login user - sends OTP instead of immediately logging in
    * @param {String} email - User email
    * @param {String} password - User password
    * @returns {Promise<Object>}
@@ -122,28 +125,78 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Check password
+    // Check if account is active
+    if (!user.isActive) {
+      throw new Error('Your account has been deactivated. Please contact support.');
+    }
+
+    // Validate password FIRST (security - prevent OTP spam for invalid credentials)
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       throw new Error('Invalid credentials');
     }
 
-    // Update last login
-    await this.authRepository.updateLastLogin(user._id);
+    // Check email verification status after password validation
+    if (!user.emailVerified) {
+      // Generate and send fresh registration OTP for unverified users
+      const otp = user.generateOTP('registration');
+      await user.save({ validateBeforeSave: false });
 
-    // Generate token
-    const token = this.generateToken(user._id);
+      try {
+        await emailService.sendRegistrationOTP(email, otp);
+      } catch (error) {
+        throw new Error('Failed to send verification email. Please try again.');
+      }
+
+      // Return OTP-required response
+      return {
+        message: 'Please verify your email address. A verification code has been sent to your email.',
+        email: user.email,
+        userId: user._id
+      };
+    }
+
+    // For doctors, check if verified by admin
+    if (user.role === 'doctor' && !user.isVerified) {
+      throw new Error('Your doctor account is pending admin verification');
+    }
+
+    // Check if user is fully verified (email + doctor verification if applicable)
+    const isFullyVerified = user.emailVerified && (user.role !== 'doctor' || user.isVerified);
+
+    if (isFullyVerified) {
+      // Skip OTP for fully verified users - generate token directly
+      const token = this.generateToken(user._id);
+
+      // Update last login
+      await this.authRepository.updateLastLogin(user._id);
+
+      return {
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          address: user.address
+        }
+      };
+    }
+
+    // Generate and send OTP for users needing additional verification (doctors pending admin verification)
+    const otp = user.generateOTP('login');
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await emailService.sendLoginOTP(email, otp);
+    } catch (error) {
+      throw new Error('Failed to send login verification email. Please try again.');
+    }
 
     return {
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        address: user.address
-      }
+      message: 'Login verification code sent to your email',
+      email: user.email
     };
   }
 
@@ -229,56 +282,172 @@ export class AuthService {
   }
 
   /**
-   * Forgot password (US7)
+   * Forgot password - sends OTP instead of reset token
    * @param {String} email - User email
-   * @returns {Promise<String>} Reset token (for testing, remove in production)
+   * @returns {Promise<Object>}
    */
   async forgotPassword(email) {
     const user = await this.authRepository.findByEmailWithPassword(email);
     if (!user) {
       // Don't reveal if user exists for security
-      return null;
+      return { message: 'If an account exists with this email, a password reset code has been sent' };
     }
 
-    // Generate reset token using the model method
-    const resetToken = user.getResetPasswordToken();
+    // Generate and send OTP
+    const otp = user.generateOTP('password-reset');
     await user.save({ validateBeforeSave: false });
 
-    // TODO: Send email with reset link
-    // const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
-    // await this.sendPasswordResetEmail(user.email, resetUrl);
+    try {
+      await emailService.sendPasswordResetOTP(email, otp);
+    } catch (error) {
+      // Don't reveal failure for security
+    }
 
-    // For development/testing: return token (remove in production)
-    return resetToken;
+    return { message: 'If an account exists with this email, a password reset code has been sent' };
   }
 
   /**
-   * Reset password (US7)
-   * @param {String} token - Reset token
+   * Reset password using OTP
+   * @param {String} email - User email
+   * @param {String} otp - OTP code
    * @param {String} newPassword - New password
-   * @returns {Promise<void>}
+   * @returns {Promise<Object>}
    */
-  async resetPassword(token, newPassword) {
-    // Hash token to compare with stored token
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
-
-    // Find user with valid reset token
-    const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
-    });
+  async resetPassword(email, otp, newPassword) {
+    const user = await User.findOne({ email }).select('+otpCode +otpExpires +otpType');
 
     if (!user) {
-      throw new Error('Invalid or expired reset token');
+      throw new Error('User not found');
     }
 
-    // Set new password and clear reset token - password will be hashed by pre-save hook
+    if (!user.verifyOTP(otp) || user.otpType !== 'password-reset') {
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Set new password and clear OTP - password will be hashed by pre-save hook
     user.password = newPassword;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    user.clearOTP();
     await user.save({ validateBeforeSave: false });
+
+    return { message: 'Password reset successfully' };
+  }
+
+  /**
+   * Verify registration OTP and complete registration
+   * @param {String} email - User email
+   * @param {String} otp - OTP code
+   * @returns {Promise<Object>}
+   */
+  async verifyRegistrationOTP(email, otp) {
+    const user = await User.findOne({ email }).select('+otpCode +otpExpires +otpType');
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.emailVerified) {
+      throw new Error('Email already verified');
+    }
+
+    if (!user.verifyOTP(otp) || user.otpType !== 'registration') {
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Mark email as verified and clear OTP
+    user.emailVerified = true;
+    user.clearOTP();
+    await user.save({ validateBeforeSave: false });
+
+    // Generate JWT token
+    const token = this.generateToken(user._id);
+
+    return {
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address,
+        ...(user.role === 'doctor' && {
+          specialization: user.specialization,
+          licenseNumber: user.licenseNumber,
+          isVerified: user.isVerified
+        })
+      }
+    };
+  }
+
+  /**
+   * Resend OTP for registration
+   * @param {String} email - User email
+   * @returns {Promise<Object>}
+   */
+  async resendRegistrationOTP(email) {
+    const user = await User.findOne({ email }).select('+otpCode +otpExpires +otpType');
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.emailVerified) {
+      throw new Error('Email already verified');
+    }
+
+    // Generate new OTP
+    const otp = user.generateOTP('registration');
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await emailService.sendRegistrationOTP(email, otp);
+    } catch (error) {
+      throw new Error('Failed to send verification email. Please try again.');
+    }
+
+    return {
+      message: 'Verification code sent to your email',
+      email: user.email
+    };
+  }
+
+  /**
+   * Verify login OTP and complete login
+   * @param {String} email - User email
+   * @param {String} otp - OTP code
+   * @returns {Promise<Object>}
+   */
+  async verifyLoginOTP(email, otp) {
+    const user = await User.findOne({ email }).select('+otpCode +otpExpires +otpType');
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.verifyOTP(otp) || user.otpType !== 'login') {
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Clear OTP
+    user.clearOTP();
+    await user.save({ validateBeforeSave: false });
+
+    // Update last login
+    await this.authRepository.updateLastLogin(user._id);
+
+    // Generate JWT token
+    const token = this.generateToken(user._id);
+
+    return {
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address
+      }
+    };
   }
 }

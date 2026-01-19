@@ -1,7 +1,6 @@
 import User from '../features/users/models/userModel.js';
 import Hospital from '../features/hospitals/models/hospitalModel.js';
-import { adminUser, nepaliHospitals } from './seedData.js';
-import bcrypt from 'bcryptjs';
+import { adminUser, nepaliHospitals, sampleDoctors } from './seedData.js';
 
 /**
  * Seed database with initial data
@@ -14,12 +13,13 @@ export const seedDatabase = async () => {
     // Seed Admin User
     const existingAdmin = await User.findOne({ email: adminUser.email });
     if (!existingAdmin) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(adminUser.password, salt);
-      
+      // Password will be hashed by the model's pre-save hook
       const admin = await User.create({
         ...adminUser,
-        password: hashedPassword
+        // Ensure OTP fields are not set
+        otpCode: undefined,
+        otpExpires: undefined,
+        otpType: undefined
       });
       
       console.log('✅ Admin user created:', admin.email);
@@ -32,7 +32,7 @@ export const seedDatabase = async () => {
     let hospitalsSkipped = 0;
 
     for (const hospitalData of nepaliHospitals) {
-      const existingHospital = await Hospital.findOne({ 
+      const existingHospital = await Hospital.findOne({
         $or: [
           { name: hospitalData.name },
           { slug: hospitalData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }
@@ -49,10 +49,38 @@ export const seedDatabase = async () => {
       }
     }
 
+    // Seed Sample Doctors
+    let doctorsCreated = 0;
+    let doctorsSkipped = 0;
+
+    for (const doctorData of sampleDoctors) {
+      const existingDoctor = await User.findOne({ email: doctorData.email });
+
+      if (!existingDoctor) {
+        // Password will be hashed by the model's pre-save hook
+        await User.create({
+          ...doctorData,
+          // Ensure OTP fields are not set
+          otpCode: undefined,
+          otpExpires: undefined,
+          otpType: undefined
+        });
+
+        doctorsCreated++;
+        console.log(`✅ Doctor created: ${doctorData.name} (${doctorData.email})`);
+      } else {
+        doctorsSkipped++;
+        console.log(`ℹ️  Doctor already exists: ${doctorData.email}`);
+      }
+    }
+
     console.log(`\n📊 Seeding Summary:`);
     console.log(`   - Hospitals created: ${hospitalsCreated}`);
     console.log(`   - Hospitals skipped: ${hospitalsSkipped}`);
     console.log(`   - Total hospitals: ${nepaliHospitals.length}`);
+    console.log(`   - Doctors created: ${doctorsCreated}`);
+    console.log(`   - Doctors skipped: ${doctorsSkipped}`);
+    console.log(`   - Total doctors: ${sampleDoctors.length}`);
     console.log('✅ Database seeding completed!\n');
 
   } catch (error) {

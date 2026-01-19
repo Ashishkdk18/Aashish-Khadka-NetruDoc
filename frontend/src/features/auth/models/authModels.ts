@@ -145,6 +145,14 @@ export interface LoginResponse {
   user: User
 }
 
+// OTP Response for registration/login when OTP is required
+export interface OTPResponse {
+  otpRequired: boolean
+  message: string
+  email: string
+  userId?: string
+}
+
 // Profile Update Models
 export interface PatientProfileUpdate {
   name?: string
@@ -196,4 +204,6 @@ export interface AuthState {
   isAuthenticated: boolean
   loading: boolean
   error: string | null
+  otpRequired?: boolean
+  otpEmail?: string | null
 }

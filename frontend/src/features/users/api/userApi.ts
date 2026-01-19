@@ -17,14 +17,20 @@ class UserApi {
   async getUsers(params?: {
     page?: number
     limit?: number
+    search?: string
+    role?: string
+    isActive?: boolean
   }): Promise<PaginatedApiResponse<User>> {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
-    
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.role) queryParams.append('role', params.role)
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
+
     const queryString = queryParams.toString()
     const url = queryString ? `${this.basePath}?${queryString}` : this.basePath
-    
+
     return apiClient.get(url)
   }
 
@@ -70,15 +76,17 @@ class UserApi {
     page?: number
     limit?: number
     specialization?: string
+    search?: string
   }): Promise<PaginatedApiResponse<User>> {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.specialization) queryParams.append('specialization', params.specialization)
-    
+    if (params?.search) queryParams.append('search', params.search)
+
     const queryString = queryParams.toString()
     const url = queryString ? `${this.basePath}/doctors?${queryString}` : `${this.basePath}/doctors`
-    
+
     return apiClient.get(url)
   }
 
@@ -88,14 +96,16 @@ class UserApi {
   async getPatients(params?: {
     page?: number
     limit?: number
+    search?: string
   }): Promise<PaginatedApiResponse<User>> {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
-    
+    if (params?.search) queryParams.append('search', params.search)
+
     const queryString = queryParams.toString()
     const url = queryString ? `${this.basePath}/patients?${queryString}` : `${this.basePath}/patients`
-    
+
     return apiClient.get(url)
   }
 }

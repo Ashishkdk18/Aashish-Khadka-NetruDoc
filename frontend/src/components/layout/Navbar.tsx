@@ -6,8 +6,6 @@ import {
   Typography,
   Button,
   IconButton,
-  Menu,
-  MenuItem,
   Box,
   useMediaQuery,
   useTheme,
@@ -17,13 +15,7 @@ import {
   ListItemButton,
   ListItemText,
 } from '@mui/material'
-import {
-  Menu as MenuIcon,
-  AccountCircle,
-  Logout,
-  Dashboard,
-  Person,
-} from '@mui/icons-material'
+import { Menu as MenuIcon } from '@mui/icons-material'
 import { useSelector, useDispatch } from 'react-redux'
 import { RootState, AppDispatch } from '../../store'
 import { logout } from '../../features/auth/authSlice'
@@ -36,21 +28,11 @@ const Navbar: React.FC = () => {
 
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth)
 
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget)
-  }
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null)
-  }
 
   const handleLogout = () => {
     dispatch(logout())
     navigate('/')
-    handleProfileMenuClose()
   }
 
   const handleMobileMenuToggle = () => {
@@ -80,15 +62,17 @@ const Navbar: React.FC = () => {
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
-              <ListItemButton component={Link} to="/appointments/my" onClick={handleMobileMenuToggle}>
-                <ListItemText primary="My Appointments" />
-              </ListItemButton>
-            </ListItem>
-            <ListItem disablePadding>
               <ListItemButton component={Link} to="/profile" onClick={handleMobileMenuToggle}>
                 <ListItemText primary="Profile" />
               </ListItemButton>
             </ListItem>
+            {user?.role === 'admin' && (
+              <ListItem disablePadding>
+                <ListItemButton component={Link} to="/admin/dashboard" onClick={handleMobileMenuToggle}>
+                  <ListItemText primary="Admin Dashboard" />
+                </ListItemButton>
+              </ListItem>
+            )}
             <ListItem disablePadding>
               <ListItemButton onClick={handleLogout}>
                 <ListItemText primary="Logout" />
@@ -153,46 +137,17 @@ const Navbar: React.FC = () => {
                   <Button color="inherit" component={Link} to="/dashboard">
                     Dashboard
                   </Button>
-                  <IconButton
-                    size="large"
-                    aria-label="account of current user"
-                    aria-controls="primary-search-account-menu"
-                    aria-haspopup="true"
-                    onClick={handleProfileMenuOpen}
-                    color="inherit"
-                  >
-                    <AccountCircle />
-                  </IconButton>
-                  <Menu
-                    id="primary-search-account-menu"
-                    anchorEl={anchorEl}
-                    anchorOrigin={{
-                      vertical: 'top',
-                      horizontal: 'right',
-                    }}
-                    keepMounted
-                    transformOrigin={{
-                      vertical: 'top',
-                      horizontal: 'right',
-                    }}
-                    open={Boolean(anchorEl)}
-                    onClose={handleProfileMenuClose}
-                  >
-                    <MenuItem component={Link} to="/profile" onClick={handleProfileMenuClose}>
-                      <Person sx={{ mr: 1 }} />
-                      Profile
-                    </MenuItem>
-                    {user?.role === 'admin' && (
-                      <MenuItem component={Link} to="/admin/dashboard" onClick={handleProfileMenuClose}>
-                        <Dashboard sx={{ mr: 1 }} />
-                        Admin Dashboard
-                      </MenuItem>
-                    )}
-                    <MenuItem onClick={handleLogout}>
-                      <Logout sx={{ mr: 1 }} />
-                      Logout
-                    </MenuItem>
-                  </Menu>
+                  <Button color="inherit" component={Link} to="/profile">
+                    Profile
+                  </Button>
+                  <Button color="inherit" onClick={handleLogout}>
+                    Logout
+                  </Button>
+                  {user?.role === 'admin' && (
+                    <Button color="inherit" component={Link} to="/admin/dashboard">
+                      Admin
+                    </Button>
+                  )}
                 </>
               ) : (
                 <>
