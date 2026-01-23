@@ -8,7 +8,9 @@ import {
   getDoctors,
   getPatients,
   activateUser,
-  deactivateUser
+  deactivateUser,
+  getDoctorAvailability,
+  updateDoctorAvailability
 } from './controllers/userController.js';
 
 const router = express.Router();
@@ -25,6 +27,10 @@ router.get('/patients', authorize('admin'), getPatients);
 
 // User-specific routes (must come after specific routes to avoid conflicts)
 router.get('/:id', getUser);
+
+// Doctor availability routes
+router.get('/doctor/availability', authorize('doctor'), getDoctorAvailability);
+router.put('/doctor/availability', authorize('doctor'), updateDoctorAvailability);
 
 // Admin only routes for user management
 router.put('/:id', authorize('admin'), updateUser);

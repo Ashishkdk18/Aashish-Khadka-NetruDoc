@@ -9,7 +9,10 @@ import {
   deleteAppointment,
   getAvailableSlots,
   confirmAppointment,
-  cancelAppointment
+  cancelAppointment,
+  requestReschedule,
+  handleRescheduleRequest,
+  getDoctorSchedule
 } from './controllers/appointmentController.js';
 
 const router = express.Router();
@@ -25,14 +28,23 @@ const appointmentValidation = [
   body('reason').notEmpty().withMessage('Appointment reason is required')
 ];
 
+const rescheduleValidation = [
+  body('newDate').isISO8601().withMessage('Valid new date is required'),
+  body('newTime').notEmpty().withMessage('New time is required'),
+  body('reason').notEmpty().withMessage('Reschedule reason is required')
+];
+
 // Routes
 router.get('/', getAppointments);
 router.get('/available-slots/:doctorId', getAvailableSlots);
+router.get('/doctor/schedule', authorize('doctor'), getDoctorSchedule);
 router.get('/:id', getAppointment);
 router.post('/', appointmentValidation, createAppointment);
 router.put('/:id', updateAppointment);
 router.put('/:id/confirm', authorize('doctor'), confirmAppointment);
 router.put('/:id/cancel', cancelAppointment);
+router.put('/:id/reschedule', rescheduleValidation, requestReschedule);
+router.put('/:id/handle-reschedule', authorize('doctor', 'admin'), handleRescheduleRequest);
 router.delete('/:id', authorize('admin'), deleteAppointment);
 
 export default router;

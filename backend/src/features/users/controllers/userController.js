@@ -161,3 +161,87 @@ export const deactivateUser = async (req, res) => {
     res.status(500).json(errorResponse('Failed to deactivate user account'));
   }
 };
+
+// @desc    Get doctor availability
+// @route   GET /api/users/doctor/availability
+// @access  Private (Doctor only)
+export const getDoctorAvailability = async (req, res) => {
+  try {
+    const user = await userService.getUserById(req.user._id);
+
+    if (user.role !== 'doctor') {
+      return res.status(403).json(errorResponse('Only doctors can access availability settings'));
+    }
+
+    res.status(200).json(successResponse('Doctor availability fetched successfully', {
+      availability: user.availability || {}
+    }));
+  } catch (error) {
+    console.error(error);
+    if (error.message === 'Resource not found') {
+      return res.status(404).json(errorResponse('User not found'));
+    }
+    res.status(500).json(errorResponse('Failed to fetch doctor availability'));
+  }
+};
+
+// @desc    Update doctor availability
+// @route   PUT /api/users/doctor/availability
+// @access  Private (Doctor only)
+export const updateDoctorAvailability = async (req, res) => {
+  try {
+    const user = await userService.getUserById(req.user._id);
+
+    if (user.role !== 'doctor') {
+      return res.status(403).json(errorResponse('Only doctors can update availability settings'));
+    }
+
+    const { availability } = req.body;
+
+    // Validate availability structure
+    if (!availability || typeof availability !== 'object') {
+      return res.status(400).json(errorResponse('Availability must be an object'));
+    }
+
+    // Validate each day's structure
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    for (const day of days) {
+      if (availability[day]) {
+        const dayData = availability[day];
+        if (typeof dayData.available !== 'boolean') {
+          return res.status(400).json(errorResponse(`${day} availability must be a boolean`));
+        }
+        if (dayData.available) {
+          if (!dayData.start || !dayData.end) {
+            return res.status(400).json(errorResponse(`${day} start and end times are required when available`));
+          }
+          // Validate time format (HH:MM)
+          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+          if (!timeRegex.test(dayData.start) || !timeRegex.test(dayData.end)) {
+            return res.status(400).json(errorResponse(`${day} times must be in HH:MM format`));
+          }
+          // Validate that end time is after start time
+          const [startHour, startMinute] = dayData.start.split(':').map(Number);
+          const [endHour, endMinute] = dayData.end.split(':').map(Number);
+          const startMinutes = startHour * 60 + startMinute;
+          const endMinutes = endHour * 60 + endMinute;
+          if (endMinutes <= startMinutes) {
+            return res.status(400).json(errorResponse(`${day} end time must be after start time`));
+          }
+        }
+      }
+    }
+
+    const updatedUser = await userService.updateUser(req.user._id, { availability });
+
+    res.status(200).json(successResponse('Doctor availability updated successfully', {
+      availability: updatedUser.availability
+    }));
+  } catch (error) {
+    console.error(error);
+    if (error.message === 'Resource not found') {
+      return res.status(404).json(errorResponse('User not found'));
+    }
+    res.status(500).json(errorResponse('Failed to update doctor availability'));
+  }
+};
