@@ -34,11 +34,63 @@ const appointmentSchema = new mongoose.Schema({
     maxlength: [1000, 'Notes cannot be more than 1000 characters']
   },
   preConsultationForm: {
-    symptoms: [String],
-    currentMedications: [String],
-    allergies: [String],
-    medicalHistory: String,
-    additionalNotes: String
+    symptoms: {
+      type: [String],
+      validate: {
+        validator: function(v) {
+          return Array.isArray(v);
+        },
+        message: 'Symptoms must be an array'
+      }
+    },
+    currentMedications: {
+      type: [String],
+      validate: {
+        validator: function(v) {
+          return Array.isArray(v);
+        },
+        message: 'Current medications must be an array'
+      }
+    },
+    allergies: {
+      type: [String],
+      validate: {
+        validator: function(v) {
+          return Array.isArray(v);
+        },
+        message: 'Allergies must be an array'
+      }
+    },
+    medicalHistory: {
+      type: String,
+      maxlength: [2000, 'Medical history cannot be more than 2000 characters']
+    },
+    additionalNotes: {
+      type: String,
+      maxlength: [1000, 'Additional notes cannot be more than 1000 characters']
+    }
+  },
+  // Reschedule fields
+  rescheduleRequestedAt: Date,
+  rescheduleRequestedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  rescheduleReason: {
+    type: String,
+    maxlength: [500, 'Reschedule reason cannot be more than 500 characters']
+  },
+  rescheduleStatus: {
+    type: String,
+    enum: ['none', 'pending', 'approved', 'rejected'],
+    default: 'none'
+  },
+  rescheduleNewDate: Date,
+  rescheduleNewTime: String,
+  rescheduleApprovedAt: Date,
+  rescheduleApprovedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   consultationId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -64,11 +116,44 @@ const appointmentSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Pre-save middleware to validate pre-consultation form
+appointmentSchema.pre('save', function(next) {
+  // Only validate on new documents (not updates)
+  if (this.isNew) {
+    if (!this.preConsultationForm) {
+      return next(new Error('Pre-consultation form is required'));
+    }
+
+    // Validate that at least symptoms are provided
+    if (!this.preConsultationForm.symptoms || this.preConsultationForm.symptoms.length === 0) {
+      return next(new Error('At least one symptom must be specified in the pre-consultation form'));
+    }
+  }
+
+  next();
+});
+
 // Indexes
 appointmentSchema.index({ patientId: 1, date: -1 });
 appointmentSchema.index({ doctorId: 1, date: -1 });
 appointmentSchema.index({ status: 1 });
 appointmentSchema.index({ date: 1, time: 1 });
+
+// Compound index to prevent double booking
+// Only one appointment per doctor per date/time slot with pending or confirmed status
+appointmentSchema.index(
+  { doctorId: 1, date: 1, time: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ['pending', 'confirmed'] }
+    },
+    name: 'double_booking_prevention'
+  }
+);
+
+// Index for reschedule queries
+appointmentSchema.index({ rescheduleStatus: 1, rescheduleRequestedAt: -1 });
 
 // Virtual for checking if appointment is upcoming
 appointmentSchema.virtual('isUpcoming').get(function() {

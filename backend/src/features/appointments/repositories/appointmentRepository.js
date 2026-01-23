@@ -109,4 +109,24 @@ export class AppointmentRepository extends BaseRepository {
       status: 'confirmed'
     });
   }
+
+  /**
+   * Find appointments by doctor and date range
+   * @param {String} doctorId - Doctor ID
+   * @param {Date} startDate - Start date
+   * @param {Date} endDate - End date
+   * @param {Object} options - Options for population and sorting
+   * @returns {Promise<Array>}
+   */
+  async findByDoctorAndDateRange(doctorId, startDate, endDate, options = {}) {
+    const query = {
+      doctorId,
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+
+    return this.findAll(query, options);
+  }
 }
