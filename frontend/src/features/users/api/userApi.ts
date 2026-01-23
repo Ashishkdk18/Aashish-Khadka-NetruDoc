@@ -108,6 +108,20 @@ class UserApi {
 
     return apiClient.get(url)
   }
+
+  /**
+   * Get doctor availability (Doctor only)
+   */
+  async getDoctorAvailability(): Promise<ApiResponse<{ availability: any }>> {
+    return apiClient.get<{ availability: any }>(`${this.basePath}/doctor/availability`)
+  }
+
+  /**
+   * Update doctor availability (Doctor only)
+   */
+  async updateDoctorAvailability(availability: any): Promise<ApiResponse<{ availability: any }>> {
+    return apiClient.put<{ availability: any }>(`${this.basePath}/doctor/availability`, { availability })
+  }
 }
 
 export const userApi = new UserApi()
