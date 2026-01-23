@@ -16,6 +16,7 @@ import ForgotPasswordPage from './features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from './features/auth/pages/ResetPasswordPage'
 import DoctorListPage from './features/users/pages/DoctorListPage'
 import DoctorProfilePage from './features/users/pages/DoctorProfilePage'
+import DoctorAvailabilityPage from './features/users/pages/DoctorAvailabilityPage'
 import ProfilePage from './features/users/pages/ProfilePage'
 import EditProfilePage from './features/users/pages/EditProfilePage'
 import UserManagementPage from './features/users/pages/UserManagementPage'
@@ -24,6 +25,7 @@ import AdminPatientsPage from './features/users/pages/AdminPatientsPage'
 import AdminPatientProfilePage from './features/users/pages/AdminPatientProfilePage'
 import AppointmentBookingPage from './features/appointments/pages/AppointmentBookingPage'
 import MyAppointmentsPage from './features/appointments/pages/MyAppointmentsPage'
+import DoctorSchedulePage from './features/appointments/pages/DoctorSchedulePage'
 import ConsultationPage from './features/consultations/pages/ConsultationPage'
 import PrescriptionListPage from './features/prescriptions/pages/PrescriptionListPage'
 import PaymentPage from './features/payments/pages/PaymentPage'
@@ -31,6 +33,7 @@ import DashboardPage from './features/dashboard/pages/DashboardPage'
 import AdminDashboardPage from './features/dashboard/pages/AdminDashboardPage'
 import AdminHospitalsPage from './features/hospitals/pages/AdminHospitalsPage'
 import AdminHospitalProfilePage from './features/hospitals/pages/AdminHospitalProfilePage'
+import AdminAppointmentsPage from './features/appointments/pages/AdminAppointmentsPage'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -73,6 +76,18 @@ function App() {
         <Route path="/appointments/my" element={
           <ProtectedRoute>
             <MyAppointmentsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/appointments/doctor/schedule" element={
+          <ProtectedRoute roles={['doctor']}>
+            <DoctorSchedulePage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/profile/availability" element={
+          <ProtectedRoute roles={['doctor']}>
+            <DoctorAvailabilityPage />
           </ProtectedRoute>
         } />
 
@@ -139,6 +154,12 @@ function App() {
         <Route path="/admin/hospitals/:id" element={
           <ProtectedRoute roles={['admin']}>
             <AdminHospitalProfilePage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/appointments" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminAppointmentsPage />
           </ProtectedRoute>
         } />
 
