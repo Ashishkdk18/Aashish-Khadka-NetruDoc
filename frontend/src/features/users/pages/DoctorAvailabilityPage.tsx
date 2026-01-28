@@ -249,8 +249,8 @@ const DoctorAvailabilityPage: React.FC = () => {
                             value={formik.values[day.key as keyof AvailabilityData].start}
                             onChange={formik.handleChange}
                             onBlur={formik.handleBlur}
-                            error={formik.touched[day.key]?.start && Boolean(formik.errors[day.key]?.start)}
-                            helperText={formik.touched[day.key]?.start && (formik.errors[day.key] as any)?.start}
+                            error={(formik.touched as any)[day.key]?.start && Boolean((formik.errors as any)[day.key]?.start)}
+                            helperText={(formik.touched as any)[day.key]?.start && (formik.errors as any)[day.key]?.start}
                             InputLabelProps={{ shrink: true }}
                             inputProps={{ step: 900 }} // 15 minute steps
                           />
@@ -264,8 +264,8 @@ const DoctorAvailabilityPage: React.FC = () => {
                             value={formik.values[day.key as keyof AvailabilityData].end}
                             onChange={formik.handleChange}
                             onBlur={formik.handleBlur}
-                            error={formik.touched[day.key]?.end && Boolean(formik.errors[day.key]?.end)}
-                            helperText={formik.touched[day.key]?.end && (formik.errors[day.key] as any)?.end}
+                            error={(formik.touched as any)[day.key]?.end && Boolean((formik.errors as any)[day.key]?.end)}
+                            helperText={(formik.touched as any)[day.key]?.end && (formik.errors as any)[day.key]?.end}
                             InputLabelProps={{ shrink: true }}
                             inputProps={{ step: 900 }} // 15 minute steps
                           />
