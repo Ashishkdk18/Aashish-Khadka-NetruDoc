@@ -82,7 +82,8 @@ const AdminAppointmentsPage: React.FC = () => {
   const {
     appointments,
     loading,
-    error
+    error,
+    deleting
   } = useSelector((state: RootState) => state.appointments)
 
   // Load appointments on component mount and when filters change
@@ -471,8 +472,9 @@ const AdminAppointmentsPage: React.FC = () => {
             onClick={handleConfirmDelete}
             color="error"
             variant="contained"
+            disabled={deleting}
           >
-            Delete Appointment
+            {deleting ? 'Deleting...' : 'Delete Appointment'}
           </Button>
         </DialogActions>
       </Dialog>

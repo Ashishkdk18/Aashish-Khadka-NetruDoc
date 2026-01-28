@@ -95,6 +95,7 @@ interface AppointmentState {
   cancelling: boolean
   rescheduling: boolean
   confirming: boolean
+  deleting: boolean
   error: string | null
   slotsError: string | null
   scheduleError: string | null
@@ -113,6 +114,7 @@ const initialState: AppointmentState = {
   cancelling: false,
   rescheduling: false,
   confirming: false,
+  deleting: false,
   error: null,
   slotsError: null,
   scheduleError: null,
@@ -224,6 +226,18 @@ export const handleRescheduleRequest = createAsyncThunk(
       return res.data.data.appointment
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to handle reschedule request')
+    }
+  }
+)
+
+export const deleteAppointment = createAsyncThunk(
+  'appointments/deleteAppointment',
+  async (appointmentId: string, { rejectWithValue }) => {
+    try {
+      await axios.delete(`/api/appointments/${appointmentId}`)
+      return appointmentId
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete appointment')
     }
   }
 )
@@ -450,6 +464,25 @@ const appointmentSlice = createSlice({
       .addCase(getDoctorSchedule.rejected, (state, action) => {
         state.loadingSchedule = false
         state.scheduleError = action.payload as string
+      })
+
+      // Delete appointment
+      .addCase(deleteAppointment.pending, (state) => {
+        state.updating = true
+        state.error = null
+      })
+      .addCase(deleteAppointment.fulfilled, (state, action) => {
+        state.updating = false
+        // Remove the deleted appointment from the list
+        state.appointments = state.appointments.filter(apt => apt.id !== action.payload)
+        if (state.currentAppointment?.id === action.payload) {
+          state.currentAppointment = null
+        }
+        state.error = null
+      })
+      .addCase(deleteAppointment.rejected, (state, action) => {
+        state.updating = false
+        state.error = action.payload as string
       })
   },
 })
