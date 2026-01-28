@@ -8,6 +8,8 @@
     "dev": "nodemon src/index.js",
     "seed": "node seed-doctors.js",
     "reset": "node reset-database.js",
+    "migrate:sprint3": "node migrate-sprint3.js",
+    "test:migration": "node test-migration.js",
     "test": "cross-env NODE_ENV=test jest",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage"
