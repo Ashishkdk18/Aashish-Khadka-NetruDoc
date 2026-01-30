@@ -17,22 +17,43 @@ export class PrescriptionService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getPrescriptions(filters = {}, pagination = {}) {
-    const { userId, role, patientId, doctorId } = filters;
+    const { userId, role, patientId, doctorId, appointmentId } = filters;
 
-    let query = { isActive: true };
+    // Start with empty query - we'll build it based on role
+    let query = {};
 
-    if (role === 'patient') {
-      query.patientId = userId;
-    } else if (role === 'doctor') {
-      query.doctorId = userId;
-    }
+    // If appointmentId is provided, filter by it (takes precedence)
+    if (appointmentId) {
+      query.appointmentId = appointmentId;
+      // When filtering by appointmentId, don't apply role-based filters
+      // Both patient and doctor should see prescriptions for that appointment
+    } else {
+      // For patients, show all their prescriptions (active and inactive)
+      // For doctors, show only active prescriptions they created
+      // For admins, show all active prescriptions (unless filtering by patientId/doctorId)
+      if (role === 'patient') {
+        query.patientId = userId;
+        // Patients can see all their prescriptions, not just active ones
+      } else if (role === 'doctor') {
+        query.doctorId = userId;
+        query.isActive = true; // Doctors see only active prescriptions
+      } else if (role === 'admin') {
+        // Admins can filter by patientId or doctorId, otherwise show all active
+        if (!patientId && !doctorId) {
+          query.isActive = true;
+        }
+      }
 
-    if (patientId) {
-      query.patientId = patientId;
-    }
+      // Override with explicit filters if provided
+      if (patientId) {
+        query.patientId = patientId;
+        // Remove isActive filter when filtering by patientId (admin viewing patient's prescriptions)
+        delete query.isActive;
+      }
 
-    if (doctorId) {
-      query.doctorId = doctorId;
+      if (doctorId) {
+        query.doctorId = doctorId;
+      }
     }
 
     const options = {

@@ -1,7 +1,11 @@
 import { PrescriptionService } from '../services/prescriptionService.js';
-import { successResponse, errorResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
+import { PDFService } from '../services/pdfService.js';
+import { AuditService } from '../../audit/services/auditService.js';
+import { successResponse, errorResponse, paginatedSuccessResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
 const prescriptionService = new PrescriptionService();
+const pdfService = new PDFService();
+const auditService = new AuditService();
 
 // @desc    Get prescriptions
 // @route   GET /api/prescriptions
@@ -12,7 +16,8 @@ export const getPrescriptions = async (req, res) => {
       userId: req.user._id,
       role: req.user.role,
       patientId: req.query.patientId,
-      doctorId: req.query.doctorId
+      doctorId: req.query.doctorId,
+      appointmentId: req.query.appointmentId
     };
 
     const pagination = {
@@ -23,7 +28,14 @@ export const getPrescriptions = async (req, res) => {
 
     const result = await prescriptionService.getPrescriptions(filters, pagination);
 
-    res.status(200).json(successResponse(RESPONSE_MESSAGES.PRESCRIPTIONS_FETCHED, result));
+    // Transform result.data to items format for consistency with frontend
+    res.status(200).json(
+      paginatedSuccessResponse(
+        RESPONSE_MESSAGES.PRESCRIPTIONS_FETCHED,
+        result.data || [],
+        result.pagination || {}
+      )
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json(errorResponse('Failed to fetch prescriptions'));
@@ -36,6 +48,16 @@ export const getPrescriptions = async (req, res) => {
 export const getPrescription = async (req, res) => {
   try {
     const prescription = await prescriptionService.getPrescriptionById(req.params.id);
+
+    // Log view action
+    await auditService.logAction(
+      'prescription',
+      prescription._id || prescription.id,
+      'view',
+      req.user._id.toString(),
+      req.user.role,
+      req
+    );
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.PRESCRIPTION_FETCHED, { prescription }));
   } catch (error) {
@@ -59,6 +81,17 @@ export const createPrescription = async (req, res) => {
 
     const prescription = await prescriptionService.createPrescription(prescriptionData);
 
+    // Log create action
+    await auditService.logAction(
+      'prescription',
+      prescription._id || prescription.id,
+      'create',
+      req.user._id.toString(),
+      req.user.role,
+      req,
+      { patientId: prescription.patientId?.toString?.() || prescription.patientId }
+    );
+
     res.status(201).json(successResponse(RESPONSE_MESSAGES.PRESCRIPTION_CREATED, { prescription }));
   } catch (error) {
     console.error(error);
@@ -75,6 +108,17 @@ export const createPrescription = async (req, res) => {
 export const updatePrescription = async (req, res) => {
   try {
     const prescription = await prescriptionService.updatePrescription(req.params.id, req.body);
+
+    // Log update action
+    await auditService.logAction(
+      'prescription',
+      prescription._id || prescription.id,
+      'update',
+      req.user._id.toString(),
+      req.user.role,
+      req,
+      { changes: Object.keys(req.body) }
+    );
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.PRESCRIPTION_UPDATED, { prescription }));
   } catch (error) {
@@ -110,11 +154,27 @@ export const downloadPrescription = async (req, res) => {
   try {
     const prescription = await prescriptionService.getPrescriptionById(req.params.id);
 
-    // TODO: Generate PDF and return
-    res.status(200).json(successResponse(RESPONSE_MESSAGES.PRESCRIPTION_DOWNLOADED, {
-      prescription,
-      pdfUrl: prescription.pdfUrl || 'PDF generation not implemented yet'
-    }));
+    // Generate PDF
+    const pdfBuffer = await pdfService.generatePrescriptionPDF(prescription);
+
+    // Log download action
+    await auditService.logAction(
+      'prescription',
+      prescription._id || prescription.id,
+      'download',
+      req.user._id.toString(),
+      req.user.role,
+      req
+    );
+
+    // Set response headers
+    const filename = `prescription-${prescription._id || prescription.id}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    // Send PDF buffer
+    res.send(pdfBuffer);
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {
