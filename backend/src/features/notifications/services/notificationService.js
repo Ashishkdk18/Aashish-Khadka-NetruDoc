@@ -1,5 +1,6 @@
 import { BaseService } from '../../../services/baseService.js';
 import { NotificationRepository } from '../repositories/notificationRepository.js';
+import { eventBus } from '../../../events/eventBus.js';
 
 /**
  * Notification Service
@@ -54,7 +55,20 @@ export class NotificationService extends BaseService {
       throw new Error('Missing required notification fields');
     }
 
-    return this.create(notificationData);
+    const notification = await this.create(notificationData);
+
+    // Emit domain-level event so transport layers (e.g., Socket.IO) can react
+    try {
+      eventBus.emit('notification:user', {
+        userId: notification.userId?.toString?.() || notification.userId,
+        notification,
+      });
+    } catch (error) {
+      // Log but do not block main flow
+      console.error('Failed to emit notification:user event:', error);
+    }
+
+    return notification;
   }
 
   /**
@@ -133,6 +147,18 @@ export class NotificationService extends BaseService {
       appointment_reminder: {
         title: 'Appointment Reminder',
         message: `You have an appointment with Dr. ${appointmentData.doctorName} tomorrow at ${appointmentData.time}.`
+      },
+      appointment_reschedule_requested: {
+        title: 'Reschedule Request Received',
+        message: `Patient ${appointmentData.patientName} has requested to reschedule appointment to ${appointmentData.newDate} at ${appointmentData.newTime}.${appointmentData.reason ? ` Reason: ${appointmentData.reason}` : ''}`
+      },
+      appointment_reschedule_approved: {
+        title: 'Reschedule Approved',
+        message: `Your reschedule request has been approved. New appointment date: ${appointmentData.newDate} at ${appointmentData.newTime}.`
+      },
+      appointment_reschedule_rejected: {
+        title: 'Reschedule Request Rejected',
+        message: `Your reschedule request has been rejected. Please contact the doctor for more information.`
       }
     };
 

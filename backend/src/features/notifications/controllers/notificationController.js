@@ -1,5 +1,5 @@
 import { NotificationService } from '../services/notificationService.js';
-import { successResponse, errorResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
+import { successResponse, errorResponse, paginatedSuccessResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
 const notificationService = new NotificationService();
 
@@ -21,7 +21,20 @@ export const getNotifications = async (req, res) => {
 
     const result = await notificationService.getNotifications(req.user._id, filters, pagination);
 
-    res.status(200).json(successResponse(RESPONSE_MESSAGES.NOTIFICATIONS_FETCHED, result));
+    // Ensure pagination metadata has correct structure
+    const paginationMeta = result.pagination || {};
+    const paginationData = {
+      page: paginationMeta.page || 1,
+      limit: paginationMeta.limit || 20,
+      total: paginationMeta.total || 0,
+      pages: paginationMeta.totalPages || Math.ceil((paginationMeta.total || 0) / (paginationMeta.limit || 20))
+    };
+
+    res.status(200).json(paginatedSuccessResponse(
+      RESPONSE_MESSAGES.NOTIFICATIONS_FETCHED,
+      result.data || [],
+      paginationData
+    ));
   } catch (error) {
     console.error(error);
     res.status(500).json(errorResponse('Failed to fetch notifications'));

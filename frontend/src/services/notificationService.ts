@@ -1,17 +1,36 @@
 import apiClient from './apiClient'
-import { NotificationResponse, ApiResponse } from '../types/api'
+import { NotificationResponse, ApiResponse, PaginatedApiResponse, NotificationType } from '../types/api'
+import { PaginationParams } from '../utils/pagination'
 
 interface CreateNotificationRequest {
   userId: string
   title: string
   message: string
-  type: 'info' | 'success' | 'warning' | 'error'
+  type: NotificationType
+}
+
+export interface GetNotificationsParams extends PaginationParams {
+  unreadOnly?: boolean
+  type?: NotificationType
 }
 
 class NotificationService {
-  // Get user's notifications
-  async getNotifications(): Promise<ApiResponse<NotificationResponse[]>> {
-    return apiClient.get<NotificationResponse[]>('/notifications')
+  // Get user's notifications with pagination
+  async getNotifications<T = NotificationResponse>(
+    params?: GetNotificationsParams
+  ): Promise<PaginatedApiResponse<T>> {
+    const queryParams = new URLSearchParams()
+    
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.sort) queryParams.append('sort', params.sort)
+    if (params?.unreadOnly !== undefined) queryParams.append('unreadOnly', params.unreadOnly.toString())
+    if (params?.type) queryParams.append('type', params.type)
+
+    const queryString = queryParams.toString()
+    const url = queryString ? `/notifications?${queryString}` : '/notifications'
+    
+    return apiClient.get<{ items: T[]; pagination: any }>(url)
   }
 
   // Get notification by ID
@@ -20,8 +39,8 @@ class NotificationService {
   }
 
   // Mark notification as read
-  async markAsRead(notificationId: string): Promise<ApiResponse> {
-    return apiClient.put(`/notifications/${notificationId}/read`)
+  async markAsRead(notificationId: string): Promise<ApiResponse<{ notification: NotificationResponse }>> {
+    return apiClient.put<{ notification: NotificationResponse }>(`/notifications/${notificationId}/read`)
   }
 
   // Mark all notifications as read
@@ -44,17 +63,12 @@ class NotificationService {
     return apiClient.get<{ count: number }>('/notifications/unread-count')
   }
 
-  // Get notifications by type
-  async getNotificationsByType(type: 'info' | 'success' | 'warning' | 'error'): Promise<ApiResponse<NotificationResponse[]>> {
-    return apiClient.get<NotificationResponse[]>(`/notifications?type=${type}`)
-  }
-
-  // Get notifications by date range
-  async getNotificationsByDateRange(
-    startDate: string,
-    endDate: string
-  ): Promise<ApiResponse<NotificationResponse[]>> {
-    return apiClient.get<NotificationResponse[]>(`/notifications?startDate=${startDate}&endDate=${endDate}`)
+  // Get notifications by type (with pagination)
+  async getNotificationsByType<T = NotificationResponse>(
+    type: NotificationType,
+    params?: PaginationParams
+  ): Promise<PaginatedApiResponse<T>> {
+    return this.getNotifications<T>({ ...params, type })
   }
 }
 
