@@ -119,25 +119,30 @@ export class AuthService {
    * @returns {Promise<Object>}
    */
   async login(email, password) {
+    console.log(`Login attempt for email: ${email}`);
     // Find user with password
     const user = await this.authRepository.findByEmailWithPassword(email);
     if (!user) {
+      console.warn(`Login failed: User not found for email ${email}`);
       throw new Error('Invalid credentials');
     }
 
     // Check if account is active
     if (!user.isActive) {
+      console.warn(`Login failed: Account deactivated for email ${email}`);
       throw new Error('Your account has been deactivated. Please contact support.');
     }
 
     // Validate password FIRST (security - prevent OTP spam for invalid credentials)
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.warn(`Login failed: Incorrect password for email ${email}`);
       throw new Error('Invalid credentials');
     }
 
     // Check email verification status after password validation
     if (!user.emailVerified) {
+      console.log(`Email not verified for ${email}. Sending registration OTP.`);
       // Generate and send fresh registration OTP for unverified users
       const otp = user.generateOTP('registration');
       await user.save({ validateBeforeSave: false });
@@ -145,6 +150,7 @@ export class AuthService {
       try {
         await emailService.sendRegistrationOTP(email, otp);
       } catch (error) {
+        console.error(`Failed to send registration OTP to ${email}:`, error);
         throw new Error('Failed to send verification email. Please try again.');
       }
 
@@ -158,6 +164,7 @@ export class AuthService {
 
     // For doctors, check if verified by admin
     if (user.role === 'doctor' && !user.isVerified) {
+      console.warn(`Login failed: Doctor account not verified by admin for ${email}`);
       throw new Error('Your doctor account is pending admin verification');
     }
 
@@ -165,25 +172,36 @@ export class AuthService {
     const isFullyVerified = user.emailVerified && (user.role !== 'doctor' || user.isVerified);
 
     if (isFullyVerified) {
-      // Skip OTP for fully verified users - generate token directly
-      const token = this.generateToken(user._id);
-
-      // Update last login
-      await this.authRepository.updateLastLogin(user._id);
-
-      return {
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          phone: user.phone,
-          address: user.address
+      try {
+        console.log(`User ${email} fully verified. Generating token.`);
+        // Skip OTP for fully verified users - generate token directly
+        const token = this.generateToken(user._id);
+        
+        if (!token) {
+          throw new Error('Token generation failed');
         }
-      };
+
+        // Update last login
+        await this.authRepository.updateLastLogin(user._id);
+
+        return {
+          token,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            phone: user.phone,
+            address: user.address
+          }
+        };
+      } catch (error) {
+        console.error('Token generation error:', error);
+        throw new Error('Failed to generate authentication token');
+      }
     }
 
+    console.log(`Login verification OTP required for ${email}. Sending login OTP.`);
     // Generate and send OTP for users needing additional verification (doctors pending admin verification)
     const otp = user.generateOTP('login');
     await user.save({ validateBeforeSave: false });
@@ -191,6 +209,7 @@ export class AuthService {
     try {
       await emailService.sendLoginOTP(email, otp);
     } catch (error) {
+      console.error(`Failed to send login OTP to ${email}:`, error);
       throw new Error('Failed to send login verification email. Please try again.');
     }
 

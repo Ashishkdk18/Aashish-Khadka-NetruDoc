@@ -51,14 +51,25 @@ export const login = async (req, res) => {
     // Direct login success
     res.status(200).json(successResponse(RESPONSE_MESSAGES.LOGIN_SUCCESS, result));
   } catch (error) {
-    console.error(error);
+    console.error('Login error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
     if (error.message === 'Invalid credentials') {
       return res.status(401).json(errorResponse(error.message));
     }
     if (error.message.includes('deactivated') || error.message.includes('pending admin verification')) {
       return res.status(403).json(errorResponse(error.message));
     }
-    res.status(500).json(errorResponse('Server error during login'));
+    if (error.message.includes('verify your email')) {
+      return res.status(200).json(successResponse(error.message, {
+        email: req.body.email
+      }));
+    }
+    
+    res.status(500).json(errorResponse(`Login failed: ${error.message || 'Server error during login'}`));
   }
 };
 
