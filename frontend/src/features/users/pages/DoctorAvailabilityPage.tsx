@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
   Container,
@@ -25,7 +25,7 @@ import {
 import { useFormik } from 'formik'
 import * as Yup from 'yup'
 
-import { RootState, AppDispatch } from '../../../store'
+import { AppDispatch } from '../../../store'
 import { userApi } from '../api/userApi'
 import { clearError } from '../../auth/authSlice'
 
@@ -85,8 +85,6 @@ const DoctorAvailabilityPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const { user } = useSelector((state: RootState) => state.auth)
 
   const formik = useFormik<AvailabilityData>({
     initialValues: {
@@ -220,7 +218,7 @@ const DoctorAvailabilityPage: React.FC = () => {
 
             <Grid container spacing={3}>
               {daysOfWeek.map((day) => (
-                <Grid item xs={12} key={day.key}>
+                <Grid size={{ xs: 12 }} key={day.key}>
                   <Paper variant="outlined" sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
@@ -240,7 +238,7 @@ const DoctorAvailabilityPage: React.FC = () => {
 
                     {formik.values[day.key as keyof AvailabilityData].available && (
                       <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                           <TextField
                             fullWidth
                             label="Start Time"
@@ -255,7 +253,7 @@ const DoctorAvailabilityPage: React.FC = () => {
                             inputProps={{ step: 900 }} // 15 minute steps
                           />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                           <TextField
                             fullWidth
                             label="End Time"
