@@ -92,6 +92,7 @@ class AppointmentApi {
     endDate?: string
     page?: number
     limit?: number
+    rescheduleStatus?: 'pending' | 'approved' | 'rejected' | 'none'
   }): Promise<ApiResponse<PaginatedResponse<AppointmentResponse>>> {
     const queryParams = new URLSearchParams()
     if (params?.status) queryParams.append('status', params.status)
@@ -99,6 +100,7 @@ class AppointmentApi {
     if (params?.endDate) queryParams.append('endDate', params.endDate)
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.rescheduleStatus) queryParams.append('rescheduleStatus', params.rescheduleStatus)
 
     return apiClient.get<PaginatedResponse<AppointmentResponse>>(`/appointments?${queryParams.toString()}`)
   }
@@ -122,8 +124,8 @@ class AppointmentApi {
   }
 
   // Delete appointment (admin only)
-  async deleteAppointment(appointmentId: string): Promise<ApiResponse> {
-    return apiClient.delete(`/appointments/${appointmentId}`)
+  async deleteAppointment(appointmentId: string): Promise<ApiResponse<unknown>> {
+    return apiClient.delete<unknown>(`/appointments/${appointmentId}`)
   }
 
   // Get available time slots for a doctor
@@ -183,6 +185,25 @@ class AppointmentApi {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
 
     return apiClient.get<PaginatedResponse<AppointmentResponse>>(`/appointments/patient/history?${queryParams.toString()}`)
+  }
+
+  // Get patient appointments by admin (admin only)
+  async getPatientAppointmentsByAdmin(patientId: string, params?: {
+    status?: string
+    startDate?: string
+    endDate?: string
+    page?: number
+    limit?: number
+  }): Promise<ApiResponse<PaginatedResponse<AppointmentResponse>>> {
+    const queryParams = new URLSearchParams()
+    queryParams.append('patientId', patientId)
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.startDate) queryParams.append('startDate', params.startDate)
+    if (params?.endDate) queryParams.append('endDate', params.endDate)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    return apiClient.get<PaginatedResponse<AppointmentResponse>>(`/appointments?${queryParams.toString()}`)
   }
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import {
   Container,
   Typography,
@@ -12,7 +13,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   Button,
   Select,
@@ -44,7 +44,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs, { Dayjs } from 'dayjs'
+import { Dayjs } from 'dayjs'
 
 import { RootState, AppDispatch } from '../../../store'
 import {
@@ -69,6 +69,7 @@ const statusLabels = {
 
 const AdminAppointmentsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
+  const navigate = useNavigate()
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all')
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
@@ -76,7 +77,7 @@ const AdminAppointmentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
-  const [currentPage, setCurrentPage] = useState(1)
+  const currentPage = 1
   const [limit] = useState(20)
 
   const {
@@ -89,7 +90,7 @@ const AdminAppointmentsPage: React.FC = () => {
   // Load appointments on component mount and when filters change
   useEffect(() => {
     loadAppointments()
-  }, [statusFilter, startDate, endDate, currentPage])
+  }, [statusFilter, startDate, endDate])
 
   // Clear errors on unmount
   useEffect(() => {
@@ -137,7 +138,8 @@ const AdminAppointmentsPage: React.FC = () => {
     }
   }
 
-  const filteredAppointments = appointments.filter(appointment => {
+  const appointmentsArray = (appointments as any)?.items || []
+  const filteredAppointments = appointmentsArray.filter((appointment: any) => {
     if (!searchTerm) return true
 
     const searchLower = searchTerm.toLowerCase()
@@ -150,7 +152,7 @@ const AdminAppointmentsPage: React.FC = () => {
   })
 
   // Calculate statistics
-  const stats = filteredAppointments.reduce((acc, appointment) => {
+  const stats = filteredAppointments.reduce((acc: any, appointment: any) => {
     acc.total++
     if (appointment.status === 'pending') acc.pending++
     if (appointment.status === 'confirmed') acc.confirmed++
@@ -189,7 +191,7 @@ const AdminAppointmentsPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <MedicalIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
@@ -198,7 +200,7 @@ const AdminAppointmentsPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Box sx={{ width: 40, height: 40, bgcolor: 'warning.main', borderRadius: '50%', mx: 'auto', mb: 1 }} />
@@ -207,7 +209,7 @@ const AdminAppointmentsPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Box sx={{ width: 40, height: 40, bgcolor: 'success.main', borderRadius: '50%', mx: 'auto', mb: 1 }} />
@@ -216,7 +218,7 @@ const AdminAppointmentsPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Box sx={{ width: 40, height: 40, bgcolor: 'info.main', borderRadius: '50%', mx: 'auto', mb: 1 }} />
@@ -243,7 +245,7 @@ const AdminAppointmentsPage: React.FC = () => {
           </Box>
 
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -260,7 +262,7 @@ const AdminAppointmentsPage: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="Start Date"
@@ -271,7 +273,7 @@ const AdminAppointmentsPage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="End Date"
@@ -282,7 +284,7 @@ const AdminAppointmentsPage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -295,7 +297,7 @@ const AdminAppointmentsPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <Button
                 variant="outlined"
                 onClick={() => {
@@ -355,7 +357,7 @@ const AdminAppointmentsPage: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAppointments.map((appointment) => (
+                  filteredAppointments.map((appointment: any) => (
                     <TableRow key={appointment.id} hover>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -421,7 +423,11 @@ const AdminAppointmentsPage: React.FC = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Tooltip title="View Details">
-                            <IconButton size="small" color="primary">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => navigate(`/appointments/${appointment.id || appointment._id}`)}
+                            >
                               <ViewIcon />
                             </IconButton>
                           </Tooltip>

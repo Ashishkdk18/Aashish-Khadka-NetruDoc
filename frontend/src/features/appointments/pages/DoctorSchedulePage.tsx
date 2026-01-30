@@ -17,13 +17,10 @@ import {
   Alert,
   CircularProgress,
   Avatar,
-  Divider,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Tabs,
-  Tab,
   Table,
   TableBody,
   TableCell,
@@ -38,7 +35,7 @@ import {
   CalendarViewMonth as CalendarIcon,
   List as ListIcon,
   CheckCircle as ConfirmIcon,
-  Cancel as RejectIcon,
+  Visibility as ViewIcon,
   Person as PersonIcon,
   AccessTime as TimeIcon,
   EventAvailable as ApproveIcon,
@@ -57,18 +54,6 @@ import {
   handleRescheduleRequest,
   clearError
 } from '../appointmentSlice'
-
-interface TabPanelProps {
-  children?: React.ReactNode
-  index: number
-  value: number
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <div role="tabpanel" hidden={value !== index}>
-    {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-  </div>
-)
 
 const statusColors = {
   pending: 'warning',
@@ -163,13 +148,25 @@ const DoctorSchedulePage: React.FC = () => {
     }
   }
 
-  const filteredAppointments = doctorSchedule.filter(appointment => {
+  const filteredAppointments = (doctorSchedule as any[]).filter((appointment: any) => {
     if (statusFilter === 'all') return true
     return appointment.status === statusFilter
   })
 
   const getAppointmentActions = (appointment: any) => {
     const actions = []
+
+    actions.push(
+      <Tooltip key="view-details" title="View Details">
+        <IconButton
+          color="primary"
+          onClick={() => navigate(`/appointments/${appointment.id || appointment._id}`)}
+          size="small"
+        >
+          <ViewIcon />
+        </IconButton>
+      </Tooltip>
+    )
 
     // Confirm pending appointments
     if (appointment.status === 'pending') {
@@ -244,7 +241,7 @@ const DoctorSchedulePage: React.FC = () => {
     return (
       <Grid container spacing={2}>
         {weekDays.map((day) => (
-          <Grid item xs={12} sm={6} md={12/7} key={day.date}>
+          <Grid size={{ xs: 12, sm: 6, md: 12 / 7 }} key={day.date}>
             <Card sx={{
               height: 300,
               display: 'flex',
@@ -399,7 +396,7 @@ const DoctorSchedulePage: React.FC = () => {
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="Start Date"
@@ -410,7 +407,7 @@ const DoctorSchedulePage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="End Date"
@@ -421,7 +418,7 @@ const DoctorSchedulePage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -438,7 +435,7 @@ const DoctorSchedulePage: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   variant={viewMode === 'list' ? 'contained' : 'outlined'}
@@ -459,7 +456,7 @@ const DoctorSchedulePage: React.FC = () => {
               </Box>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <Button
                 startIcon={<RefreshIcon />}
                 onClick={loadSchedule}

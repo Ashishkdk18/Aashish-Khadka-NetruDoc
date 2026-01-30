@@ -1,8 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import axios from 'axios'
+import appointmentApi from './api/appointmentApi'
 
 // Enhanced Appointment interface
-interface PreConsultationForm {
+export interface PreConsultationForm {
   symptoms: string[]
   currentMedications: string[]
   allergies: string[]
@@ -10,7 +10,7 @@ interface PreConsultationForm {
   additionalNotes: string
 }
 
-interface RescheduleInfo {
+export interface RescheduleInfo {
   rescheduleRequestedAt: string
   rescheduleRequestedBy: string
   rescheduleReason: string
@@ -21,7 +21,7 @@ interface RescheduleInfo {
   rescheduleApprovedBy?: string
 }
 
-interface Appointment {
+export interface Appointment {
   id: string
   patientId: string
   doctorId: string
@@ -67,27 +67,21 @@ interface UpdateAppointmentRequest {
   preConsultationForm?: PreConsultationForm
 }
 
-interface CancelAppointmentRequest {
-  reason?: string
-}
-
 interface RescheduleAppointmentRequest {
   newDate: string
   newTime: string
   reason: string
 }
 
-interface HandleRescheduleRequest {
-  action: 'approve' | 'reject'
-}
-
 // Enhanced state interface
 interface AppointmentState {
-  appointments: Appointment[]
+  appointments: any // Changed to any to handle both array and paginated object formats used in the slice
+  patientAppointments: any // Appointments for a specific patient (used by admin)
   currentAppointment: Appointment | null
   availableSlots: string[]
   doctorSchedule: Appointment[]
   loading: boolean
+  loadingPatientAppointments: boolean
   loadingSlots: boolean
   loadingSchedule: boolean
   creating: boolean
@@ -103,10 +97,12 @@ interface AppointmentState {
 
 const initialState: AppointmentState = {
   appointments: [],
+  patientAppointments: null,
   currentAppointment: null,
   availableSlots: [],
   doctorSchedule: [],
   loading: false,
+  loadingPatientAppointments: false,
   loadingSlots: false,
   loadingSchedule: false,
   creating: false,
@@ -123,25 +119,20 @@ const initialState: AppointmentState = {
 // Async thunks
 export const getAppointments = createAsyncThunk(
   'appointments/getAppointments',
-  async (params?: {
+  async (params: {
     status?: string
     startDate?: string
     endDate?: string
     page?: number
     limit?: number
-  }, { rejectWithValue }) => {
+    rescheduleStatus?: 'pending' | 'approved' | 'rejected' | 'none'
+  } | undefined, { rejectWithValue }) => {
     try {
-      const queryParams = new URLSearchParams()
-      if (params?.status) queryParams.append('status', params.status)
-      if (params?.startDate) queryParams.append('startDate', params.startDate)
-      if (params?.endDate) queryParams.append('endDate', params.endDate)
-      if (params?.page) queryParams.append('page', params.page.toString())
-      if (params?.limit) queryParams.append('limit', params.limit.toString())
-
-      const res = await axios.get(`/api/appointments?${queryParams.toString()}`)
-      return res.data.data
+      const response = await appointmentApi.getAppointments(params)
+      return response.data
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch appointments')
+      const message = error?.message || 'Failed to fetch appointments'
+      return rejectWithValue(message)
     }
   }
 )
@@ -150,10 +141,11 @@ export const getAppointmentById = createAsyncThunk(
   'appointments/getAppointmentById',
   async (appointmentId: string, { rejectWithValue }) => {
     try {
-      const res = await axios.get(`/api/appointments/${appointmentId}`)
-      return res.data.data.appointment
+      const response = await appointmentApi.getAppointment(appointmentId)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch appointment')
+      const message = error?.message || 'Failed to fetch appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -162,10 +154,11 @@ export const createAppointment = createAsyncThunk(
   'appointments/createAppointment',
   async (appointmentData: CreateAppointmentRequest, { rejectWithValue }) => {
     try {
-      const res = await axios.post('/api/appointments', appointmentData)
-      return res.data.data.appointment
+      const response = await appointmentApi.createAppointment(appointmentData)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create appointment')
+      const message = error?.message || 'Failed to create appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -174,10 +167,11 @@ export const updateAppointment = createAsyncThunk(
   'appointments/updateAppointment',
   async ({ appointmentId, updateData }: { appointmentId: string; updateData: UpdateAppointmentRequest }, { rejectWithValue }) => {
     try {
-      const res = await axios.put(`/api/appointments/${appointmentId}`, updateData)
-      return res.data.data.appointment
+      const response = await appointmentApi.updateAppointment(appointmentId, updateData)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update appointment')
+      const message = error?.message || 'Failed to update appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -186,10 +180,11 @@ export const cancelAppointment = createAsyncThunk(
   'appointments/cancelAppointment',
   async ({ appointmentId, reason }: { appointmentId: string; reason?: string }, { rejectWithValue }) => {
     try {
-      const res = await axios.put(`/api/appointments/${appointmentId}/cancel`, { reason })
-      return res.data.data.appointment
+      const response = await appointmentApi.cancelAppointment(appointmentId, reason)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to cancel appointment')
+      const message = error?.message || 'Failed to cancel appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -198,10 +193,11 @@ export const confirmAppointment = createAsyncThunk(
   'appointments/confirmAppointment',
   async (appointmentId: string, { rejectWithValue }) => {
     try {
-      const res = await axios.put(`/api/appointments/${appointmentId}/confirm`)
-      return res.data.data.appointment
+      const response = await appointmentApi.confirmAppointment(appointmentId)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to confirm appointment')
+      const message = error?.message || 'Failed to confirm appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -210,10 +206,11 @@ export const requestReschedule = createAsyncThunk(
   'appointments/requestReschedule',
   async ({ appointmentId, rescheduleData }: { appointmentId: string; rescheduleData: RescheduleAppointmentRequest }, { rejectWithValue }) => {
     try {
-      const res = await axios.put(`/api/appointments/${appointmentId}/reschedule`, rescheduleData)
-      return res.data.data.appointment
+      const response = await appointmentApi.requestReschedule(appointmentId, rescheduleData)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to request reschedule')
+      const message = error?.message || 'Failed to request reschedule'
+      return rejectWithValue(message)
     }
   }
 )
@@ -222,10 +219,30 @@ export const handleRescheduleRequest = createAsyncThunk(
   'appointments/handleRescheduleRequest',
   async ({ appointmentId, action }: { appointmentId: string; action: 'approve' | 'reject' }, { rejectWithValue }) => {
     try {
-      const res = await axios.put(`/api/appointments/${appointmentId}/handle-reschedule`, { action })
-      return res.data.data.appointment
+      const response = await appointmentApi.handleRescheduleRequest(appointmentId, action)
+      return response.data.appointment
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to handle reschedule request')
+      const message = error?.message || 'Failed to handle reschedule request'
+      return rejectWithValue(message)
+    }
+  }
+)
+
+export const getPatientAppointmentsByAdmin = createAsyncThunk(
+  'appointments/getPatientAppointmentsByAdmin',
+  async ({ patientId, params }: { patientId: string; params?: {
+    status?: string
+    startDate?: string
+    endDate?: string
+    page?: number
+    limit?: number
+  } }, { rejectWithValue }) => {
+    try {
+      const response = await appointmentApi.getPatientAppointmentsByAdmin(patientId, params)
+      return response.data
+    } catch (error: any) {
+      const message = error?.message || 'Failed to fetch patient appointments'
+      return rejectWithValue(message)
     }
   }
 )
@@ -234,10 +251,11 @@ export const deleteAppointment = createAsyncThunk(
   'appointments/deleteAppointment',
   async (appointmentId: string, { rejectWithValue }) => {
     try {
-      await axios.delete(`/api/appointments/${appointmentId}`)
+      await appointmentApi.deleteAppointment(appointmentId)
       return appointmentId
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete appointment')
+      const message = error?.message || 'Failed to delete appointment'
+      return rejectWithValue(message)
     }
   }
 )
@@ -246,11 +264,11 @@ export const getAvailableSlots = createAsyncThunk(
   'appointments/getAvailableSlots',
   async ({ doctorId, date }: { doctorId: string; date?: string }, { rejectWithValue }) => {
     try {
-      const params = date ? { date } : {}
-      const res = await axios.get(`/api/appointments/available-slots/${doctorId}`, { params })
-      return res.data.data.slots
+      const response = await appointmentApi.getAvailableSlots(doctorId, date)
+      return response.data.slots
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch available slots')
+      const message = error?.message || 'Failed to fetch available slots'
+      return rejectWithValue(message)
     }
   }
 )
@@ -259,11 +277,11 @@ export const getDoctorSchedule = createAsyncThunk(
   'appointments/getDoctorSchedule',
   async ({ startDate, endDate }: { startDate: string; endDate: string }, { rejectWithValue }) => {
     try {
-      const params = { startDate, endDate }
-      const res = await axios.get('/api/appointments/doctor/schedule', { params })
-      return res.data.data.appointments
+      const response = await appointmentApi.getDoctorSchedule(startDate, endDate)
+      return response.data.appointments
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch doctor schedule')
+      const message = error?.message || 'Failed to fetch doctor schedule'
+      return rejectWithValue(message)
     }
   }
 )
@@ -323,7 +341,11 @@ const appointmentSlice = createSlice({
       })
       .addCase(createAppointment.fulfilled, (state, action) => {
         state.creating = false
-        state.appointments.unshift(action.payload) // Add to beginning of list
+        if (state.appointments?.items) {
+          state.appointments.items.unshift(action.payload)
+        } else if (Array.isArray(state.appointments)) {
+          state.appointments.unshift(action.payload)
+        }
         state.error = null
       })
       .addCase(createAppointment.rejected, (state, action) => {
@@ -338,9 +360,17 @@ const appointmentSlice = createSlice({
       })
       .addCase(updateAppointment.fulfilled, (state, action) => {
         state.updating = false
-        const index = state.appointments.findIndex(apt => apt.id === action.payload.id)
+        const appointmentList = state.appointments?.items || state.appointments || []
+        const index = Array.isArray(appointmentList) 
+          ? appointmentList.findIndex((apt: any) => apt.id === action.payload.id)
+          : -1
+
         if (index !== -1) {
-          state.appointments[index] = action.payload
+          if (state.appointments?.items) {
+            state.appointments.items[index] = action.payload
+          } else if (Array.isArray(state.appointments)) {
+            state.appointments[index] = action.payload
+          }
         }
         if (state.currentAppointment?.id === action.payload.id) {
           state.currentAppointment = action.payload
@@ -359,9 +389,17 @@ const appointmentSlice = createSlice({
       })
       .addCase(cancelAppointment.fulfilled, (state, action) => {
         state.cancelling = false
-        const index = state.appointments.findIndex(apt => apt.id === action.payload.id)
+        const appointmentList = state.appointments?.items || state.appointments || []
+        const index = Array.isArray(appointmentList) 
+          ? appointmentList.findIndex((apt: any) => apt.id === action.payload.id)
+          : -1
+
         if (index !== -1) {
-          state.appointments[index] = action.payload
+          if (state.appointments?.items) {
+            state.appointments.items[index] = action.payload
+          } else if (Array.isArray(state.appointments)) {
+            state.appointments[index] = action.payload
+          }
         }
         if (state.currentAppointment?.id === action.payload.id) {
           state.currentAppointment = action.payload
@@ -380,9 +418,17 @@ const appointmentSlice = createSlice({
       })
       .addCase(confirmAppointment.fulfilled, (state, action) => {
         state.confirming = false
-        const index = state.appointments.findIndex(apt => apt.id === action.payload.id)
+        const appointmentList = state.appointments?.items || state.appointments || []
+        const index = Array.isArray(appointmentList) 
+          ? appointmentList.findIndex((apt: any) => apt.id === action.payload.id)
+          : -1
+
         if (index !== -1) {
-          state.appointments[index] = action.payload
+          if (state.appointments?.items) {
+            state.appointments.items[index] = action.payload
+          } else if (Array.isArray(state.appointments)) {
+            state.appointments[index] = action.payload
+          }
         }
         if (state.currentAppointment?.id === action.payload.id) {
           state.currentAppointment = action.payload
@@ -401,10 +447,20 @@ const appointmentSlice = createSlice({
       })
       .addCase(requestReschedule.fulfilled, (state, action) => {
         state.rescheduling = false
-        const index = state.appointments.findIndex(apt => apt.id === action.payload.id)
+        // Handle both paginated and array structures
+        const appointmentList = state.appointments?.items || state.appointments || []
+        const index = Array.isArray(appointmentList) 
+          ? appointmentList.findIndex((apt: any) => apt.id === action.payload.id)
+          : -1
+
         if (index !== -1) {
-          state.appointments[index] = action.payload
+          if (state.appointments?.items) {
+            state.appointments.items[index] = action.payload
+          } else if (Array.isArray(state.appointments)) {
+            state.appointments[index] = action.payload
+          }
         }
+        
         if (state.currentAppointment?.id === action.payload.id) {
           state.currentAppointment = action.payload
         }
@@ -422,9 +478,17 @@ const appointmentSlice = createSlice({
       })
       .addCase(handleRescheduleRequest.fulfilled, (state, action) => {
         state.updating = false
-        const index = state.appointments.findIndex(apt => apt.id === action.payload.id)
+        const appointmentList = state.appointments?.items || state.appointments || []
+        const index = Array.isArray(appointmentList) 
+          ? appointmentList.findIndex((apt: any) => apt.id === action.payload.id)
+          : -1
+
         if (index !== -1) {
-          state.appointments[index] = action.payload
+          if (state.appointments?.items) {
+            state.appointments.items[index] = action.payload
+          } else if (Array.isArray(state.appointments)) {
+            state.appointments[index] = action.payload
+          }
         }
         if (state.currentAppointment?.id === action.payload.id) {
           state.currentAppointment = action.payload
@@ -474,7 +538,9 @@ const appointmentSlice = createSlice({
       .addCase(deleteAppointment.fulfilled, (state, action) => {
         state.updating = false
         // Remove the deleted appointment from the list
-        state.appointments = state.appointments.filter(apt => apt.id !== action.payload)
+        if (state.appointments?.items) {
+          state.appointments.items = state.appointments.items.filter((apt: { id: string }) => apt.id !== action.payload)
+        }
         if (state.currentAppointment?.id === action.payload) {
           state.currentAppointment = null
         }
@@ -482,6 +548,21 @@ const appointmentSlice = createSlice({
       })
       .addCase(deleteAppointment.rejected, (state, action) => {
         state.updating = false
+        state.error = action.payload as string
+      })
+
+      // Get patient appointments by admin
+      .addCase(getPatientAppointmentsByAdmin.pending, (state) => {
+        state.loadingPatientAppointments = true
+        state.error = null
+      })
+      .addCase(getPatientAppointmentsByAdmin.fulfilled, (state, action) => {
+        state.loadingPatientAppointments = false
+        state.patientAppointments = action.payload
+        state.error = null
+      })
+      .addCase(getPatientAppointmentsByAdmin.rejected, (state, action) => {
+        state.loadingPatientAppointments = false
         state.error = action.payload as string
       })
   },

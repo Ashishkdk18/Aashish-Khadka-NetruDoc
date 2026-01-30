@@ -25,7 +25,6 @@ import {
   TextField
 } from '@mui/material'
 import {
-  Person as PersonIcon,
   LocalHospital as HospitalIcon,
   Star as StarIcon,
   AccessTime as TimeIcon,
@@ -106,6 +105,8 @@ const AppointmentBookingPage: React.FC = () => {
           notes: values.notes,
           preConsultationForm: values.preConsultationForm
         }
+
+        console.log('Creating appointment with data:', appointmentData)
 
         await dispatch(createAppointment(appointmentData)).unwrap()
 
@@ -221,7 +222,7 @@ const AppointmentBookingPage: React.FC = () => {
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Grid container spacing={3} alignItems="center">
-            <Grid item>
+            <Grid>
               <Avatar
                 sx={{ width: 80, height: 80, bgcolor: 'primary.main' }}
                 src={doctor.profilePicture}
@@ -229,7 +230,7 @@ const AppointmentBookingPage: React.FC = () => {
                 {doctor.name.charAt(0).toUpperCase()}
               </Avatar>
             </Grid>
-            <Grid item xs>
+            <Grid size="grow">
               <Typography variant="h5" component="h2" gutterBottom>
                 Dr. {doctor.name}
               </Typography>
@@ -255,7 +256,7 @@ const AppointmentBookingPage: React.FC = () => {
                 )}
               </Box>
             </Grid>
-            <Grid item>
+            <Grid>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="body2" color="text.secondary">
                   <HospitalIcon sx={{ mr: 0.5, verticalAlign: 'middle' }} />
@@ -267,15 +268,16 @@ const AppointmentBookingPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Stepper */}
+      {/* Stepper and Content */}
       <Paper sx={{ p: 3, mb: 4 }}>
-        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+        <Box>
+          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
 
         {/* Error Display */}
         {(error || slotsError) && (
@@ -293,7 +295,7 @@ const AppointmentBookingPage: React.FC = () => {
 
             <Grid container spacing={4}>
               {/* Date Picker */}
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                   <CalendarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Choose Date
@@ -316,7 +318,7 @@ const AppointmentBookingPage: React.FC = () => {
               </Grid>
 
               {/* Time Slots */}
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                   <TimeIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Available Time Slots
@@ -427,32 +429,32 @@ const AppointmentBookingPage: React.FC = () => {
                 <Divider sx={{ mb: 2 }} />
 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Doctor</Typography>
                     <Typography variant="body1">Dr. {doctor.name}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Specialization</Typography>
                     <Typography variant="body1">
                       {doctor.specialization?.replace('-', ' ').toUpperCase()}
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Date</Typography>
                     <Typography variant="body1">
                       {formik.values.date?.format('dddd, MMMM D, YYYY')}
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Time</Typography>
                     <Typography variant="body1">{formik.values.time}</Typography>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="body2" color="text.secondary">Reason</Typography>
                     <Typography variant="body1">{formik.values.reason}</Typography>
                   </Grid>
                   {formik.values.notes && (
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Typography variant="body2" color="text.secondary">Additional Notes</Typography>
                       <Typography variant="body1">{formik.values.notes}</Typography>
                     </Grid>
@@ -502,6 +504,7 @@ const AppointmentBookingPage: React.FC = () => {
               </Button>
             )}
           </Box>
+        </Box>
         </Box>
       </Paper>
     </Container>

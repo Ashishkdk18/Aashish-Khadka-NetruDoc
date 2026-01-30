@@ -6,13 +6,12 @@ import {
   TextField,
   Typography,
   Chip,
-  IconButton,
   Autocomplete,
   FormControl,
   FormLabel,
   FormHelperText
 } from '@mui/material'
-import { Add as AddIcon, Close as CloseIcon } from '@mui/icons-material'
+import { Close as CloseIcon } from '@mui/icons-material'
 
 export interface PreConsultationFormData {
   symptoms: string[]
@@ -100,12 +99,6 @@ const PreConsultationForm: React.FC<PreConsultationFormProps> = ({
     }
   }
 
-  const handleRemoveItem = (field: keyof PreConsultationFormData, index: number) => {
-    const currentArray = formik.values[field] as string[]
-    const newArray = currentArray.filter((_, i) => i !== index)
-    formik.setFieldValue(field, newArray)
-  }
-
   return (
     <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%' }}>
       <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
@@ -133,15 +126,19 @@ const PreConsultationForm: React.FC<PreConsultationFormProps> = ({
             }
           }}
           renderTags={(value, getTagProps) =>
-            value.map((option, index) => (
-              <Chip
-                variant="outlined"
-                label={option}
-                {...getTagProps({ index })}
-                deleteIcon={<CloseIcon />}
-                sx={{ mr: 1, mb: 1 }}
-              />
-            ))
+            value.map((option, index) => {
+              const { key, ...tagProps } = getTagProps({ index })
+              return (
+                <Chip
+                  key={key}
+                  variant="outlined"
+                  label={option}
+                  {...tagProps}
+                  deleteIcon={<CloseIcon />}
+                  sx={{ mr: 1, mb: 1 }}
+                />
+              )
+            })
           }
           renderInput={(params) => (
             <TextField
@@ -179,15 +176,19 @@ const PreConsultationForm: React.FC<PreConsultationFormProps> = ({
             }
           }}
           renderTags={(value, getTagProps) =>
-            value.map((option, index) => (
-              <Chip
-                variant="outlined"
-                label={option}
-                {...getTagProps({ index })}
-                deleteIcon={<CloseIcon />}
-                sx={{ mr: 1, mb: 1 }}
-              />
-            ))
+            value.map((option, index) => {
+              const { key, ...tagProps } = getTagProps({ index })
+              return (
+                <Chip
+                  key={key}
+                  variant="outlined"
+                  label={option}
+                  {...tagProps}
+                  deleteIcon={<CloseIcon />}
+                  sx={{ mr: 1, mb: 1 }}
+                />
+              )
+            })
           }
           renderInput={(params) => (
             <TextField
@@ -224,15 +225,19 @@ const PreConsultationForm: React.FC<PreConsultationFormProps> = ({
             }
           }}
           renderTags={(value, getTagProps) =>
-            value.map((option, index) => (
-              <Chip
-                variant="outlined"
-                label={option}
-                {...getTagProps({ index })}
-                deleteIcon={<CloseIcon />}
-                sx={{ mr: 1, mb: 1 }}
-              />
-            ))
+            value.map((option, index) => {
+              const { key, ...tagProps } = getTagProps({ index })
+              return (
+                <Chip
+                  key={key}
+                  variant="outlined"
+                  label={option}
+                  {...tagProps}
+                  deleteIcon={<CloseIcon />}
+                  sx={{ mr: 1, mb: 1 }}
+                />
+              )
+            })
           }
           renderInput={(params) => (
             <TextField

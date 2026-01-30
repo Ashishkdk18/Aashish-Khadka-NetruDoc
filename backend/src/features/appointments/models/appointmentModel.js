@@ -117,20 +117,18 @@ const appointmentSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware to validate pre-consultation form
-appointmentSchema.pre('save', function(next) {
+appointmentSchema.pre('save', async function() {
   // Only validate on new documents (not updates)
   if (this.isNew) {
     if (!this.preConsultationForm) {
-      return next(new Error('Pre-consultation form is required'));
+      throw new Error('Pre-consultation form is required');
     }
 
     // Validate that at least symptoms are provided
     if (!this.preConsultationForm.symptoms || this.preConsultationForm.symptoms.length === 0) {
-      return next(new Error('At least one symptom must be specified in the pre-consultation form'));
+      throw new Error('At least one symptom must be specified in the pre-consultation form');
     }
   }
-
-  next();
 });
 
 // Indexes

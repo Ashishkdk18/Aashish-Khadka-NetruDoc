@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { AppointmentService } from '../services/appointmentService.js';
 import { successResponse, errorResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
@@ -8,26 +9,63 @@ const appointmentService = new AppointmentService();
 // @access  Private
 export const getAppointments = async (req, res) => {
   try {
+    // Ensure user is authenticated and has valid ID
+    if (!req.user || !req.user._id) {
+      return res.status(401).json(errorResponse('User not authenticated'));
+    }
+
+    // Allow admin to filter by patientId
+    let userId = req.user._id;
+    let role = req.user.role;
+    
+    if (req.user.role === 'admin' && req.query.patientId) {
+      // Admin can view appointments for a specific patient
+      userId = req.query.patientId;
+      role = 'patient';
+    }
+
     const filters = {
-      userId: req.user._id,
-      role: req.user.role,
+      userId: userId,
+      role: role,
       status: req.query.status,
       startDate: req.query.startDate,
-      endDate: req.query.endDate
+      endDate: req.query.endDate,
+      rescheduleStatus: req.query.rescheduleStatus
     };
 
     const pagination = {
-      page: req.query.page || 1,
-      limit: req.query.limit || 10,
+      page: parseInt(req.query.page) || 1,
+      limit: parseInt(req.query.limit) || 10,
       sort: req.query.sort || '-date'
     };
 
     const result = await appointmentService.getAppointments(filters, pagination);
 
-    res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENTS_FETCHED, result));
+    // Ensure result has proper structure
+    const appointments = result.data || result.items || [];
+    const paginationInfo = result.pagination || {
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 0
+    };
+
+    res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENTS_FETCHED, {
+      items: appointments,
+      pagination: paginationInfo
+    }));
   } catch (error) {
-    console.error(error);
-    res.status(500).json(errorResponse('Failed to fetch appointments'));
+    console.error('Error fetching appointments:', error);
+    if (error.message && error.message.includes('Invalid user ID format')) {
+      return res.status(400).json(errorResponse(error.message));
+    }
+    // Log full error for debugging
+    console.error('Full error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    res.status(500).json(errorResponse('Failed to fetch appointments: ' + (error.message || 'Unknown error')));
   }
 };
 
@@ -36,7 +74,34 @@ export const getAppointments = async (req, res) => {
 // @access  Private
 export const getAppointment = async (req, res) => {
   try {
-    const appointment = await appointmentService.getAppointmentById(req.params.id);
+    const { id } = req.params;
+
+    // Ensure user is authenticated
+    if (!req.user || !req.user._id) {
+      return res.status(401).json(errorResponse('User not authenticated'));
+    }
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
+    const appointment = await appointmentService.getAppointmentById(id);
+
+    // Authorization: only patient, assigned doctor, or admin can view
+    const userId = req.user._id.toString();
+    const role = req.user.role;
+
+    const patientId = (appointment?.patientId?._id || appointment?.patientId)?.toString?.() || String(appointment?.patientId);
+    const doctorId = (appointment?.doctorId?._id || appointment?.doctorId)?.toString?.() || String(appointment?.doctorId);
+
+    const isAdmin = role === 'admin';
+    const isPatient = patientId === userId;
+    const isDoctor = doctorId === userId;
+
+    if (!isAdmin && !isPatient && !isDoctor) {
+      return res.status(403).json(errorResponse('Not authorized to view this appointment'));
+    }
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_FETCHED, { appointment }));
   } catch (error) {
@@ -100,7 +165,7 @@ export const createAppointment = async (req, res) => {
 
     res.status(201).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_CREATED, { appointment }));
   } catch (error) {
-    console.error(error);
+    console.error('Error creating appointment:', error);
     if (error.message === 'Time slot is already booked' || error.message === 'Doctor is not available at the requested time') {
       return res.status(400).json(errorResponse(error.message));
     }
@@ -116,7 +181,14 @@ export const createAppointment = async (req, res) => {
 // @access  Private
 export const updateAppointment = async (req, res) => {
   try {
-    const appointment = await appointmentService.updateAppointment(req.params.id, req.body);
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
+    const appointment = await appointmentService.updateAppointment(id, req.body);
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_UPDATED, { appointment }));
   } catch (error) {
@@ -136,7 +208,14 @@ export const updateAppointment = async (req, res) => {
 // @access  Private (Admin only)
 export const deleteAppointment = async (req, res) => {
   try {
-    await appointmentService.delete(req.params.id);
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
+    await appointmentService.delete(id);
 
     res.status(200).json(successResponse('Appointment deleted successfully'));
   } catch (error) {
@@ -154,13 +233,30 @@ export const deleteAppointment = async (req, res) => {
 export const getAvailableSlots = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const date = req.query.date ? new Date(req.query.date) : new Date();
+
+    // Validate doctorId
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json(errorResponse('Invalid doctor ID format'));
+    }
+
+    let date;
+    if (req.query.date) {
+      date = new Date(req.query.date);
+      if (isNaN(date.getTime())) {
+        return res.status(400).json(errorResponse('Invalid date format'));
+      }
+    } else {
+      date = new Date();
+    }
 
     const slots = await appointmentService.getAvailableSlots(doctorId, date);
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.SLOTS_FETCHED, { slots }));
   } catch (error) {
     console.error(error);
+    if (error.message === 'Doctor not found') {
+      return res.status(404).json(errorResponse(error.message));
+    }
     res.status(500).json(errorResponse('Failed to fetch available slots'));
   }
 };
@@ -170,7 +266,14 @@ export const getAvailableSlots = async (req, res) => {
 // @access  Private (Doctor only)
 export const confirmAppointment = async (req, res) => {
   try {
-    const appointment = await appointmentService.confirmAppointment(req.params.id);
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
+    const appointment = await appointmentService.confirmAppointment(id);
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_CONFIRMED, { appointment }));
   } catch (error) {
@@ -190,8 +293,15 @@ export const confirmAppointment = async (req, res) => {
 // @access  Private
 export const cancelAppointment = async (req, res) => {
   try {
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
     const appointment = await appointmentService.cancelAppointment(
-      req.params.id,
+      id,
       req.user._id,
       req.body.reason
     );
@@ -214,15 +324,34 @@ export const cancelAppointment = async (req, res) => {
 // @access  Private
 export const requestReschedule = async (req, res) => {
   try {
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
     const { newDate, newTime, reason } = req.body;
 
     if (!newDate || !newTime || !reason) {
       return res.status(400).json(errorResponse('New date, time, and reason are required'));
     }
 
+    // Validate date format
+    const appointmentDate = new Date(newDate);
+    if (isNaN(appointmentDate.getTime())) {
+      return res.status(400).json(errorResponse('Invalid date format'));
+    }
+
+    // Validate time format (HH:MM)
+    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(newTime)) {
+      return res.status(400).json(errorResponse('Invalid time format. Use HH:MM format'));
+    }
+
     const appointment = await appointmentService.rescheduleAppointment(
-      req.params.id,
-      new Date(newDate),
+      id,
+      appointmentDate,
       newTime,
       req.user._id,
       reason
@@ -230,15 +359,20 @@ export const requestReschedule = async (req, res) => {
 
     res.status(200).json(successResponse('Reschedule request submitted successfully', { appointment }));
   } catch (error) {
-    console.error(error);
-    if (error.message === 'Resource not found') {
+    console.error('Error requesting reschedule:', error);
+    console.error('Error stack:', error.stack);
+    
+    if (error.message === 'Resource not found' || error.message === 'Appointment not found') {
       return res.status(404).json(errorResponse('Appointment not found'));
+    }
+    if (error.message === 'Invalid date provided') {
+      return res.status(400).json(errorResponse(error.message));
     }
     if (error.message.includes('already has') || error.message.includes('Cannot reschedule') ||
         error.message.includes('not available') || error.message.includes('already booked')) {
       return res.status(400).json(errorResponse(error.message));
     }
-    res.status(500).json(errorResponse('Failed to request reschedule'));
+    res.status(500).json(errorResponse('Failed to request reschedule: ' + (error.message || 'Unknown error')));
   }
 };
 
@@ -247,6 +381,13 @@ export const requestReschedule = async (req, res) => {
 // @access  Private (Doctor/Admin only)
 export const handleRescheduleRequest = async (req, res) => {
   try {
+    const { id } = req.params;
+
+    // Validate appointment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json(errorResponse('Invalid appointment ID format'));
+    }
+
     const { action } = req.body; // 'approve' or 'reject'
 
     if (!['approve', 'reject'].includes(action)) {
@@ -254,7 +395,7 @@ export const handleRescheduleRequest = async (req, res) => {
     }
 
     const appointment = await appointmentService.handleRescheduleRequest(
-      req.params.id,
+      id,
       action,
       req.user._id
     );

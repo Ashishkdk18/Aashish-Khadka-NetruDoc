@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import { BaseService } from '../../../services/baseService.js';
 import { AppointmentRepository } from '../repositories/appointmentRepository.js';
 import User from '../../users/models/userModel.js';
+import { NotificationService } from '../../notifications/services/notificationService.js';
 
 /**
  * Appointment Service
@@ -9,6 +11,7 @@ import User from '../../users/models/userModel.js';
 export class AppointmentService extends BaseService {
   constructor() {
     super(new AppointmentRepository());
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -18,24 +21,54 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getAppointments(filters = {}, pagination = {}) {
-    const { userId, role, status, startDate, endDate } = filters;
+    const { userId, role, status, startDate, endDate, rescheduleStatus } = filters;
+
+    // Validate userId if provided
+    if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
+      throw new Error('Invalid user ID format');
+    }
+
+    // Validate role
+    if (!role || !['patient', 'doctor', 'admin'].includes(role)) {
+      throw new Error('Invalid user role');
+    }
 
     let query = {};
 
     // Filter by user role
     if (role === 'patient') {
+      if (!userId) {
+        throw new Error('Patient ID is required');
+      }
       query.patientId = userId;
     } else if (role === 'doctor') {
+      if (!userId) {
+        throw new Error('Doctor ID is required');
+      }
       query.doctorId = userId;
     }
+    // Admin can see all appointments, so no filter needed
 
     if (status) {
+      const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        throw new Error('Invalid status filter');
+      }
       query.status = status;
     }
 
+    // Optional reschedule status filter
+    if (rescheduleStatus) {
+      const validRescheduleStatuses = ['none', 'pending', 'approved', 'rejected'];
+      if (!validRescheduleStatuses.includes(rescheduleStatus)) {
+        throw new Error('Invalid reschedule status filter');
+      }
+      query.rescheduleStatus = rescheduleStatus;
+    }
+
     const options = {
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
+      page: parseInt(pagination.page) || 1,
+      limit: parseInt(pagination.limit) || 10,
       sort: pagination.sort || '-date',
       populate: [
         { path: 'patientId', select: 'name email phone' },
@@ -45,14 +78,29 @@ export class AppointmentService extends BaseService {
 
     // Date range filter
     if (startDate && endDate) {
-      return this.repository.findByDateRange(
-        new Date(startDate),
-        new Date(endDate),
-        options
-      );
+      try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          throw new Error('Invalid date range provided');
+        }
+        
+        return await this.repository.findByDateRange(start, end, options);
+      } catch (error) {
+        console.error('Error in findByDateRange:', error);
+        throw error;
+      }
     }
 
-    return this.repository.findAll(query, options);
+    try {
+      return await this.repository.findAll(query, options);
+    } catch (error) {
+      console.error('Error in findAll appointments:', error);
+      console.error('Query:', query);
+      console.error('Options:', options);
+      throw error;
+    }
   }
 
   /**
@@ -61,6 +109,9 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Object>}
    */
   async getAppointmentById(id) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid appointment ID format');
+    }
     return this.getById(id, {
       populate: [
         { path: 'patientId', select: 'name email phone address' },
@@ -77,10 +128,17 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Object>}
    */
   async createAppointment(appointmentData) {
+    // Normalize and validate date
+    const appointmentDate = new Date(appointmentData.date);
+    if (!appointmentData.date || isNaN(appointmentDate.getTime())) {
+      throw new Error('Invalid date provided');
+    }
+
     // Validate doctor availability for the requested time
+
     const isAvailable = await this.validateDoctorAvailability(
-      appointmentData.doctorId,
-      appointmentData.date,
+      appointmentData.doctorId,      
+      appointmentDate,
       appointmentData.time
     );
 
@@ -113,7 +171,11 @@ export class AppointmentService extends BaseService {
     // If date/time is being updated, validate availability and check for conflicts
     if (updateData.date || updateData.time) {
       const appointment = await this.getById(id);
-      const checkDate = updateData.date || appointment.date;
+      const rawDate = updateData.date || appointment.date;
+      const checkDate = new Date(rawDate);
+      if (!rawDate || isNaN(checkDate.getTime())) {
+        throw new Error('Invalid date provided');
+      }
       const checkTime = updateData.time || appointment.time;
 
       // Validate doctor availability
@@ -151,6 +213,18 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Array>}
    */
   async getAvailableSlots(doctorId, date) {
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      throw new Error('Invalid doctor ID format');
+    }
+
+    // Validate date
+    if (!date || isNaN(new Date(date).getTime())) {
+      throw new Error('Invalid date provided');
+    }
+
+    const checkDate = new Date(date);
+
     // Get doctor to check availability schedule
     const doctor = await User.findById(doctorId).select('availability');
 
@@ -160,7 +234,7 @@ export class AppointmentService extends BaseService {
 
     // Get day of week (lowercase)
     const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayOfWeek = daysOfWeek[date.getDay()];
+    const dayOfWeek = daysOfWeek[checkDate.getDay()];
 
     // Check if doctor is available on this day
     const dayAvailability = doctor.availability?.[dayOfWeek];
@@ -170,7 +244,7 @@ export class AppointmentService extends BaseService {
     }
 
     // Get booked slots
-    const bookedSlots = await this.repository.getBookedSlots(doctorId, date);
+    const bookedSlots = await this.repository.getBookedSlots(doctorId, checkDate);
 
     // Generate available slots based on doctor's working hours
     const availableSlots = this.generateTimeSlots(dayAvailability.start, dayAvailability.end);
@@ -257,51 +331,144 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Object>}
    */
   async rescheduleAppointment(appointmentId, newDate, newTime, requestedBy, reason) {
-    const appointment = await this.getById(appointmentId);
+    try {
+      // Normalize and validate date
+      const normalizedDate = new Date(newDate);
+      if (!newDate || isNaN(normalizedDate.getTime())) {
+        throw new Error('Invalid date provided');
+      }
 
-    // Only pending or confirmed appointments can be rescheduled
-    if (!['pending', 'confirmed'].includes(appointment.status)) {
-      throw new Error('Cannot reschedule appointment with current status');
+      // Normalize date to start of day for consistent comparison
+      normalizedDate.setHours(0, 0, 0, 0);
+
+      const appointment = await this.getById(appointmentId);
+
+      if (!appointment) {
+        throw new Error('Resource not found');
+      }
+
+      // Only pending or confirmed appointments can be rescheduled
+      if (!['pending', 'confirmed'].includes(appointment.status)) {
+        throw new Error('Cannot reschedule appointment with current status');
+      }
+
+      // Check if already has a pending reschedule request
+      if (appointment.rescheduleStatus === 'pending') {
+        throw new Error('Appointment already has a pending reschedule request');
+      }
+
+      // Ensure doctorId is properly formatted (handle both ObjectId and populated object)
+      let doctorId;
+      if (!appointment.doctorId) {
+        throw new Error('Appointment doctor ID is missing');
+      }
+      
+      // Handle ObjectId, populated object, or string
+      if (mongoose.Types.ObjectId.isValid(appointment.doctorId)) {
+        if (typeof appointment.doctorId === 'object' && appointment.doctorId._id) {
+          // Populated object
+          doctorId = appointment.doctorId._id.toString();
+        } else if (appointment.doctorId.toString) {
+          // ObjectId instance
+          doctorId = appointment.doctorId.toString();
+        } else {
+          doctorId = String(appointment.doctorId);
+        }
+      } else {
+        doctorId = String(appointment.doctorId);
+      }
+
+      if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+        throw new Error('Invalid doctor ID format');
+      }
+
+      // Validate doctor availability for new time
+      const isAvailable = await this.validateDoctorAvailability(
+        doctorId,
+        normalizedDate,
+        newTime
+      );
+
+      if (!isAvailable) {
+        throw new Error('Doctor is not available at the requested new time');
+      }
+
+      // Check for conflicts at new time
+      // Use date range query to match the same day
+      const startOfDay = new Date(normalizedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(normalizedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const conflict = await this.repository.findOne({
+        doctorId: doctorId,
+        date: {
+          $gte: startOfDay,
+          $lte: endOfDay
+        },
+        time: newTime,
+        status: { $in: ['pending', 'confirmed'] },
+        _id: { $ne: appointmentId }
+      });
+
+      if (conflict) {
+        throw new Error('New time slot is already booked');
+      }
+
+      // Update appointment with reschedule request
+      const updatedAppointment = await this.update(appointmentId, {
+        rescheduleRequestedAt: new Date(),
+        rescheduleRequestedBy: requestedBy,
+        rescheduleReason: reason,
+        rescheduleStatus: 'pending',
+        rescheduleNewDate: normalizedDate,
+        rescheduleNewTime: newTime
+      });
+
+      // Send notification to doctor (non-blocking)
+      this.getById(appointmentId, {
+        populate: [
+          { path: 'doctorId', select: 'name' },
+          { path: 'patientId', select: 'name' }
+        ]
+      }).then((appointment) => {
+        if (appointment && appointment.doctorId && appointment.patientId) {
+          const doctorId = appointment.doctorId._id || appointment.doctorId;
+          const doctorName = appointment.doctorId.name || 'Doctor';
+          const patientName = appointment.patientId.name || 'Patient';
+          
+          this.notificationService.sendAppointmentNotification(
+            doctorId,
+            'appointment_reschedule_requested',
+            {
+              appointmentId: appointment._id.toString(),
+              doctorId: doctorId.toString(),
+              doctorName: doctorName,
+              patientName: patientName,
+              newDate: normalizedDate.toISOString().split('T')[0],
+              newTime: newTime,
+              reason: reason
+            }
+          ).catch(err => console.error('Failed to send reschedule notification:', err));
+        }
+      }).catch(err => console.error('Failed to fetch appointment for notification:', err));
+
+      return updatedAppointment;
+    } catch (error) {
+      console.error('Error in rescheduleAppointment:', error);
+      // Re-throw known errors, wrap unknown ones
+      if (error.message && (
+        error.message.includes('not found') ||
+        error.message.includes('Cannot reschedule') ||
+        error.message.includes('already has') ||
+        error.message.includes('not available') ||
+        error.message.includes('already booked') ||
+        error.message.includes('Invalid')
+      )) {
+        throw error;
+      }
+      throw new Error(`Failed to reschedule appointment: ${error.message || 'Unknown error'}`);
     }
-
-    // Check if already has a pending reschedule request
-    if (appointment.rescheduleStatus === 'pending') {
-      throw new Error('Appointment already has a pending reschedule request');
-    }
-
-    // Validate doctor availability for new time
-    const isAvailable = await this.validateDoctorAvailability(
-      appointment.doctorId,
-      newDate,
-      newTime
-    );
-
-    if (!isAvailable) {
-      throw new Error('Doctor is not available at the requested new time');
-    }
-
-    // Check for conflicts at new time
-    const conflict = await this.repository.findOne({
-      doctorId: appointment.doctorId,
-      date: newDate,
-      time: newTime,
-      status: { $in: ['pending', 'confirmed'] },
-      _id: { $ne: appointmentId }
-    });
-
-    if (conflict) {
-      throw new Error('New time slot is already booked');
-    }
-
-    // Update appointment with reschedule request
-    return this.updateById(appointmentId, {
-      rescheduleRequestedAt: new Date(),
-      rescheduleRequestedBy: requestedBy,
-      rescheduleReason: reason,
-      rescheduleStatus: 'pending',
-      rescheduleNewDate: newDate,
-      rescheduleNewTime: newTime
-    });
   }
 
   /**
@@ -318,23 +485,77 @@ export class AppointmentService extends BaseService {
       throw new Error('No pending reschedule request found');
     }
 
+    let updatedAppointment;
     if (action === 'approve') {
       // Update appointment with new date/time and mark as approved
-      return this.updateById(appointmentId, {
+      updatedAppointment = await this.update(appointmentId, {
         date: appointment.rescheduleNewDate,
         time: appointment.rescheduleNewTime,
         rescheduleStatus: 'approved',
         rescheduleApprovedAt: new Date(),
         rescheduleApprovedBy: approvedBy
       });
+
+      // Send notification to patient (non-blocking)
+      this.getById(appointmentId, {
+        populate: [
+          { path: 'doctorId', select: 'name' },
+          { path: 'patientId', select: 'name' }
+        ]
+      }).then((appointment) => {
+        if (appointment && appointment.doctorId && appointment.patientId) {
+          const patientId = appointment.patientId._id || appointment.patientId;
+          const doctorName = appointment.doctorId.name || 'Doctor';
+          const newDate = appointment.date instanceof Date 
+            ? appointment.date.toISOString().split('T')[0]
+            : new Date(appointment.date).toISOString().split('T')[0];
+          
+          this.notificationService.sendAppointmentNotification(
+            patientId,
+            'appointment_reschedule_approved',
+            {
+              appointmentId: appointment._id.toString(),
+              doctorId: (appointment.doctorId._id || appointment.doctorId).toString(),
+              doctorName: doctorName,
+              newDate: newDate,
+              newTime: appointment.time
+            }
+          ).catch(err => console.error('Failed to send approval notification:', err));
+        }
+      }).catch(err => console.error('Failed to fetch appointment for notification:', err));
     } else if (action === 'reject') {
       // Mark reschedule as rejected
-      return this.updateById(appointmentId, {
+      updatedAppointment = await this.update(appointmentId, {
         rescheduleStatus: 'rejected'
       });
+
+      // Send notification to patient (non-blocking)
+      this.getById(appointmentId, {
+        populate: [
+          { path: 'doctorId', select: 'name' },
+          { path: 'patientId', select: 'name' }
+        ]
+      }).then((appointment) => {
+        if (appointment && appointment.doctorId && appointment.patientId) {
+          const patientId = appointment.patientId._id || appointment.patientId;
+          const doctorName = appointment.doctorId.name || 'Doctor';
+          
+          this.notificationService.sendAppointmentNotification(
+            patientId,
+            'appointment_reschedule_rejected',
+            {
+              appointmentId: appointment._id.toString(),
+              doctorId: (appointment.doctorId._id || appointment.doctorId).toString(),
+              doctorName: doctorName
+            }
+          ).catch(err => console.error('Failed to send rejection notification:', err));
+        }
+      }).catch(err => console.error('Failed to fetch appointment for notification:', err));
     } else {
       throw new Error('Invalid action. Must be "approve" or "reject"');
     }
+
+    return updatedAppointment;
   }
 
   /**
@@ -345,11 +566,29 @@ export class AppointmentService extends BaseService {
    * @returns {Promise<Array>}
    */
   async getDoctorSchedule(doctorId, startDate, endDate) {
-    return this.repository.findByDoctorAndDateRange(doctorId, startDate, endDate, {
-      populate: [
-        { path: 'patientId', select: 'name email phone' }
-      ]
-    });
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      throw new Error('Invalid doctor ID format');
+    }
+
+    if (!startDate || isNaN(new Date(startDate).getTime())) {
+      throw new Error('Invalid start date provided');
+    }
+
+    if (!endDate || isNaN(new Date(endDate).getTime())) {
+      throw new Error('Invalid end date provided');
+    }
+
+    const result = await this.repository.findByDoctorAndDateRange(
+      doctorId,
+      new Date(startDate),
+      new Date(endDate),
+      {
+        populate: [
+          { path: 'patientId', select: 'name email phone' }
+        ]
+      }
+    );
+    return result.data || result.items || [];
   }
 
   /**

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Container,
   Typography,
@@ -17,7 +17,6 @@ import {
   Alert,
   CircularProgress,
   Avatar,
-  Divider,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -45,10 +44,9 @@ import {
   getAppointments,
   cancelAppointment,
   requestReschedule,
-  clearError
+  getAvailableSlots,
+  clearAvailableSlots
 } from '../appointmentSlice'
-import { userApi } from '../../users/api/userApi'
-import { User } from '../../auth/models/authModels'
 
 const statusColors = {
   pending: 'warning',
@@ -67,6 +65,7 @@ const statusLabels = {
 const MyAppointmentsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const location = useLocation()
+  const navigate = useNavigate()
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all')
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
@@ -87,8 +86,13 @@ const MyAppointmentsPage: React.FC = () => {
     loading,
     error,
     cancelling,
-    rescheduling
+    rescheduling,
+    availableSlots,
+    loadingSlots,
+    slotsError
   } = useSelector((state: RootState) => state.appointments)
+
+  const appointmentsArray = (appointments as any)?.items || []
 
   // Load appointments on component mount and when filters change
   useEffect(() => {
@@ -160,7 +164,39 @@ const MyAppointmentsPage: React.FC = () => {
     setRescheduleDate(null)
     setRescheduleTime('')
     setRescheduleReasonText('')
+    dispatch(clearAvailableSlots())
   }
+
+  // Load available slots when reschedule date changes
+  useEffect(() => {
+    if (rescheduleDialogOpen && rescheduleDate && selectedAppointment?.doctorId) {
+      // Handle both string ID and populated object
+      let doctorId: string | undefined
+      if (typeof selectedAppointment.doctorId === 'string') {
+        doctorId = selectedAppointment.doctorId
+      } else if (selectedAppointment.doctorId) {
+        // Populated object - try _id (MongoDB) or id (transformed)
+        doctorId = (selectedAppointment.doctorId as any)._id || (selectedAppointment.doctorId as any).id
+      }
+      
+      if (doctorId) {
+        dispatch(getAvailableSlots({
+          doctorId: String(doctorId),
+          date: rescheduleDate.format('YYYY-MM-DD')
+        }))
+      }
+    } else if (rescheduleDialogOpen && !rescheduleDate) {
+      dispatch(clearAvailableSlots())
+    }
+  }, [rescheduleDate, rescheduleDialogOpen, selectedAppointment, dispatch])
+
+  // Clear slots when dialog closes
+  useEffect(() => {
+    if (!rescheduleDialogOpen) {
+      dispatch(clearAvailableSlots())
+      setRescheduleTime('')
+    }
+  }, [rescheduleDialogOpen, dispatch])
 
   const handleConfirmReschedule = async () => {
     if (!selectedAppointment || !rescheduleDate || !rescheduleTime || !rescheduleReasonText.trim()) return
@@ -200,6 +236,8 @@ const MyAppointmentsPage: React.FC = () => {
 
   const canRescheduleAppointment = (appointment: any) => {
     const status = appointment.status
+    // Prevent duplicate reschedule requests while one is pending
+    if (appointment.rescheduleStatus === 'pending') return false
     return status === 'pending' || status === 'confirmed'
   }
 
@@ -213,7 +251,10 @@ const MyAppointmentsPage: React.FC = () => {
           size="small"
           color="error"
           startIcon={<CancelIcon />}
-          onClick={() => handleCancelAppointment(appointment)}
+          onClick={(e) => {
+            e.currentTarget.blur()
+            handleCancelAppointment(appointment)
+          }}
           sx={{ mr: 1 }}
         >
           Cancel
@@ -228,7 +269,10 @@ const MyAppointmentsPage: React.FC = () => {
           size="small"
           color="warning"
           startIcon={<EditIcon />}
-          onClick={() => handleRescheduleAppointment(appointment)}
+          onClick={(e) => {
+            e.currentTarget.blur()
+            handleRescheduleAppointment(appointment)
+          }}
           sx={{ mr: 1 }}
         >
           Reschedule
@@ -242,7 +286,7 @@ const MyAppointmentsPage: React.FC = () => {
         size="small"
         variant="outlined"
         startIcon={<ViewIcon />}
-        onClick={() => {/* TODO: Navigate to appointment details */}}
+        onClick={() => navigate(`/appointments/${appointment.id || appointment._id}`)}
       >
         View Details
       </Button>
@@ -279,7 +323,7 @@ const MyAppointmentsPage: React.FC = () => {
           </Box>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -296,7 +340,7 @@ const MyAppointmentsPage: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="Start Date"
@@ -307,7 +351,7 @@ const MyAppointmentsPage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <DatePicker
                   label="End Date"
@@ -318,7 +362,7 @@ const MyAppointmentsPage: React.FC = () => {
               </LocalizationProvider>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Button
                 variant="outlined"
                 onClick={() => {
@@ -353,12 +397,12 @@ const MyAppointmentsPage: React.FC = () => {
           {/* Results Count */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="body2" color="text.secondary">
-              Showing {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}
+              Showing {appointmentsArray.length} appointment{appointmentsArray.length !== 1 ? 's' : ''}
             </Typography>
           </Box>
 
           {/* Appointments List */}
-          {appointments.length === 0 ? (
+          {appointmentsArray.length === 0 ? (
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 8 }}>
                 <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
@@ -385,81 +429,81 @@ const MyAppointmentsPage: React.FC = () => {
               </CardContent>
             </Card>
           ) : (
-            <Grid container spacing={3}>
-              {appointments.map((appointment) => (
-                <Grid item xs={12} key={appointment.id}>
-                  <Card>
-                    <CardContent>
-                      <Grid container spacing={3} alignItems="center">
-                        {/* Doctor Info */}
-                        <Grid item xs={12} sm={4}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
-                              {appointment.doctorId?.name?.charAt(0) || 'D'}
-                            </Avatar>
-                            <Box>
-                              <Typography variant="h6">
-                                Dr. {appointment.doctorId?.name || 'Unknown Doctor'}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {appointment.doctorId?.specialization?.replace('-', ' ').toUpperCase() || 'Specialization not specified'}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Grid>
-
-                        {/* Appointment Details */}
-                        <Grid item xs={12} sm={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <CalendarIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                            <Typography variant="body2">
-                              {new Date(appointment.date).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
+          <Grid container spacing={3}>
+            {appointmentsArray.map((appointment: any) => (
+              <Grid size={{ xs: 12 }} key={appointment.id}>
+                <Card>
+                  <CardContent>
+                    <Grid container spacing={3} alignItems="center">
+                      {/* Doctor Info */}
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
+                            {appointment.doctorId?.name?.charAt(0) || 'D'}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6">
+                              Dr. {appointment.doctorId?.name || 'Unknown Doctor'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {appointment.doctorId?.specialization?.replace('-', ' ').toUpperCase() || 'Specialization not specified'}
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <TimeIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                            <Typography variant="body2">{appointment.time}</Typography>
-                          </Box>
-                        </Grid>
+                        </Box>
+                      </Grid>
 
-                        {/* Status and Reason */}
-                        <Grid item xs={12} sm={3}>
-                          <Box sx={{ mb: 1 }}>
-                            <Chip
-                              label={statusLabels[appointment.status as keyof typeof statusLabels]}
-                              color={statusColors[appointment.status as keyof typeof statusColors]}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                            {appointment.reason}
+                      {/* Appointment Details */}
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <CalendarIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
+                          <Typography variant="body2">
+                            {new Date(appointment.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
                           </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <TimeIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
+                          <Typography variant="body2">{appointment.time}</Typography>
+                        </Box>
+                      </Grid>
 
-                          {/* Reschedule Status */}
-                          {appointment.rescheduleStatus === 'pending' && (
-                            <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
-                              Reschedule pending approval
-                            </Typography>
-                          )}
-                          {appointment.rescheduleStatus === 'approved' && (
-                            <Typography variant="caption" color="success.main" sx={{ mt: 1, display: 'block' }}>
-                              Reschedule approved
-                            </Typography>
-                          )}
-                          {appointment.rescheduleStatus === 'rejected' && (
-                            <Typography variant="caption" color="error.main" sx={{ mt: 1, display: 'block' }}>
-                              Reschedule rejected
-                            </Typography>
-                          )}
-                        </Grid>
+                      {/* Status and Reason */}
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Box sx={{ mb: 1 }}>
+                          <Chip
+                            label={statusLabels[appointment.status as keyof typeof statusLabels]}
+                            color={statusColors[appointment.status as keyof typeof statusColors]}
+                            size="small"
+                          />
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          {appointment.reason}
+                        </Typography>
 
-                        {/* Actions */}
-                        <Grid item xs={12} sm={2}>
+                        {/* Reschedule Status */}
+                        {appointment.rescheduleStatus === 'pending' && (
+                          <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
+                            Reschedule pending approval
+                          </Typography>
+                        )}
+                        {appointment.rescheduleStatus === 'approved' && (
+                          <Typography variant="caption" color="success.main" sx={{ mt: 1, display: 'block' }}>
+                            Reschedule approved
+                          </Typography>
+                        )}
+                        {appointment.rescheduleStatus === 'rejected' && (
+                          <Typography variant="caption" color="error.main" sx={{ mt: 1, display: 'block' }}>
+                            Reschedule rejected
+                          </Typography>
+                        )}
+                      </Grid>
+
+                      {/* Actions */}
+                      <Grid size={{ xs: 12, sm: 2 }}>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                             {getAppointmentActions(appointment)}
                           </Box>
@@ -482,6 +526,7 @@ const MyAppointmentsPage: React.FC = () => {
             Are you sure you want to cancel your appointment with Dr. {selectedAppointment?.doctorId?.name}?
           </Typography>
           <TextField
+            autoFocus
             fullWidth
             multiline
             rows={3}
@@ -517,23 +562,69 @@ const MyAppointmentsPage: React.FC = () => {
             <DatePicker
               label="New Date"
               value={rescheduleDate}
-              onChange={setRescheduleDate}
+              onChange={(newDate) => {
+                setRescheduleDate(newDate)
+                setRescheduleTime('') // Clear time when date changes
+              }}
               minDate={dayjs()}
               maxDate={dayjs().add(90, 'day')}
               slotProps={{
-                textField: { fullWidth: true, sx: { mb: 2 } }
+                textField: { fullWidth: true, sx: { mb: 2 }, autoFocus: true }
               }}
             />
           </LocalizationProvider>
 
-          <TextField
-            fullWidth
-            label="New Time"
-            placeholder="HH:MM"
-            value={rescheduleTime}
-            onChange={(e) => setRescheduleTime(e.target.value)}
-            sx={{ mb: 2 }}
-          />
+          {/* Available Time Slots */}
+          {rescheduleDate && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1 }}>
+                <TimeIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: 18 }} />
+                Available Time Slots
+              </Typography>
+
+              {loadingSlots ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={30} />
+                </Box>
+              ) : slotsError ? (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {slotsError}
+                </Alert>
+              ) : availableSlots.length > 0 ? (
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', 
+                  gap: 1,
+                  mb: 2
+                }}>
+                  {availableSlots.map((slot) => (
+                    <Button
+                      key={slot}
+                      variant={rescheduleTime === slot ? 'contained' : 'outlined'}
+                      onClick={() => setRescheduleTime(slot)}
+                      size="small"
+                      sx={{
+                        minHeight: 36,
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      {slot}
+                    </Button>
+                  ))}
+                </Box>
+              ) : (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  No available slots for the selected date. Please choose a different date.
+                </Alert>
+              )}
+            </Box>
+          )}
+
+          {!rescheduleDate && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Please select a date to view available time slots.
+            </Alert>
+          )}
 
           <TextField
             fullWidth
