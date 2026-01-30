@@ -79,8 +79,13 @@ const LoginPage: React.FC = () => {
 
   // Handle initial login (email/password validation)
   const handleInitialLogin = async (values: typeof formik.values) => {
-    setLoginEmail(values.email)
-    await dispatch(login(values))
+    try {
+      setLoginEmail(values.email)
+      await dispatch(login(values)).unwrap()
+    } catch (error) {
+      // Error is already handled by Redux, but ensure loading is reset
+      console.error('Login error:', error)
+    }
   }
 
   // Handle OTP verification

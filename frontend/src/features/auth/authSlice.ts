@@ -8,7 +8,7 @@ const initialState: AuthState = {
   user: null,
   token: apiClient.getAuthToken(),
   isAuthenticated: false,
-  loading: true,
+  loading: false,
   error: null,
 }
 
@@ -92,12 +92,18 @@ export const login = createAsyncThunk(
       }
 
       // Backend uses standardized response wrapper: { status, message, data: { ... } }
+      // apiClient returns response.data which is already the data property
       const responseData: any = response.data
 
       // Check for direct login (token/user in data property)
-      if (responseData.data && responseData.data.token && responseData.data.user) {
-        apiClient.setAuthToken(responseData.data.token)
-        return { token: responseData.data.token, user: responseData.data.user }
+      if (responseData.token && responseData.user) {
+        // Validate token format (basic JWT check)
+        if (!responseData.token.includes('.')) {
+          console.error('Invalid token format received:', responseData.token);
+          return rejectWithValue('Invalid token received from server');
+        }
+        apiClient.setAuthToken(responseData.token)
+        return { token: responseData.token, user: responseData.user }
       } else if (response.message && responseData.email) {
         // OTP flow required (email/userId in data property)
         const otpResponse: OTPResponse = {
@@ -109,7 +115,8 @@ export const login = createAsyncThunk(
         return otpResponse
       } else {
         // Unexpected response format
-        return rejectWithValue('Unexpected login response')
+        console.error('Unexpected login response:', response)
+        return rejectWithValue('Unexpected login response format')
       }
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Login failed'
@@ -279,6 +286,9 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null
+    },
+    setLoading: (state, action) => {
+      state.loading = action.payload
     },
   },
   extraReducers: (builder) => {
@@ -453,5 +463,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { clearError } = authSlice.actions
+export const { clearError, setLoading } = authSlice.actions
 export default authSlice.reducer
