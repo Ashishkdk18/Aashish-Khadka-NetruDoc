@@ -51,13 +51,15 @@ export const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      return res.status(401).json({
+      console.error('Authentication protect middleware internal error:', error);
+      return res.status(500).json({
         status: 'error',
-        message: 'Not authorized to access this route',
+        message: 'Server error in authentication',
         data: {}
       });
     }
   } catch (error) {
+    console.error('Authentication protect middleware outer error:', error);
     return res.status(500).json({
       status: 'error',
       message: 'Server error in authentication',

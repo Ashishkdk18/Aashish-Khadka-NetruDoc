@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { registerSocketHandlers } from './socket/socketEvents.js';
 
 // Import configurations
 import connectDB from './config/database.js';
@@ -20,6 +21,8 @@ import prescriptionRoutes from './features/prescriptions/routes.js';
 import paymentRoutes from './features/payments/routes.js';
 import notificationRoutes from './features/notifications/routes.js';
 import hospitalRoutes from './features/hospitals/routes.js';
+import chatRoutes from './features/chat/routes.js';
+import medicalRecordsRoutes from './features/medical-records/routes.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -37,17 +40,50 @@ const io = new Server(server, {
   }
 });
 
-// Rate limiting
+// Rate limiting - more lenient for development
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: process.env.NODE_ENV === 'development' ? 60 * 1000 : 15 * 60 * 1000, // 1 minute in dev, 15 minutes in prod
+  max: process.env.NODE_ENV === 'development' ? 500 : 100, // 500 requests per minute in dev, 100 per 15min in prod
   message: 'Too many requests from this IP, please try again later.'
+});
+
+// More lenient limiter for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute for auth endpoints
+  message: 'Too many authentication requests, please try again later.'
 });
 
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost variations for development
+    if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      return callback(null, true);
+    }
+
+    // Allow local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 169.254.x.x)
+    if (origin && /^(https?:\/\/)?(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.)\d+\.\d+:\d+$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // For development, allow all origins to make testing easier
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+
+    // Default: allow the configured CLIENT_URL
+    const allowedOrigin = process.env.CLIENT_URL || "http://localhost:3000";
+    if (origin === allowedOrigin) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -71,7 +107,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes); // More lenient rate limiting for auth
 app.use('/api/users', userRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/consultations', consultationRoutes);
@@ -79,39 +115,11 @@ app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/hospitals', hospitalRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/medical-records', medicalRecordsRoutes);
 
 // Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
-
-  // Join user-specific room
-  socket.on('join', (userId) => {
-    socket.join(userId);
-    console.log(`User ${userId} joined room`);
-  });
-
-  // Handle real-time messaging
-  socket.on('sendMessage', (data) => {
-    io.to(data.receiverId).emit('receiveMessage', data);
-  });
-
-  // Handle video consultation signaling
-  socket.on('videoOffer', (data) => {
-    socket.to(data.target).emit('videoOffer', data);
-  });
-
-  socket.on('videoAnswer', (data) => {
-    socket.to(data.target).emit('videoAnswer', data);
-  });
-
-  socket.on('iceCandidate', (data) => {
-    socket.to(data.target).emit('iceCandidate', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+registerSocketHandlers(io);
 
 // Error handling middleware
 app.use(notFound);

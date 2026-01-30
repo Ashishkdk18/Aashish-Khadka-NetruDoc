@@ -50,7 +50,16 @@ export class BaseRepository {
         if (typeof pop === 'string') {
           queryBuilder.populate(pop);
         } else {
-          queryBuilder.populate(pop.path, pop.select);
+          // Handle populate with options object or simple path/select
+          if (pop.path) {
+            const populateOptions = {
+              path: pop.path,
+              select: pop.select || ''
+            };
+            queryBuilder.populate(populateOptions);
+          } else {
+            queryBuilder.populate(pop);
+          }
         }
       });
     }
