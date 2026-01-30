@@ -11,19 +11,18 @@ import {
   Button,
 } from '@mui/material'
 import {
-  CalendarToday as CalendarIcon,
-  Add as AddIcon,
   Schedule as ScheduleIcon,
-  CheckCircle as CheckCircleIcon,
   EventAvailable as EventIcon,
   MedicalServices as MedicalIcon,
+  CalendarToday as CalendarIcon,
+  AccessTime as TimeIcon,
   Medication as MedicationIcon,
-  LocalHospital as HospitalIcon,
+  People as PeopleIcon,
   Notifications as NotificationsIcon,
   Chat as ChatIcon,
   Person as PersonIcon,
-  Search as SearchIcon,
   Videocam as VideocamIcon,
+  Add as AddIcon,
 } from '@mui/icons-material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -33,7 +32,7 @@ import { getAppointments } from '../../appointments/appointmentSlice'
 import { getPrescriptions } from '../../prescriptions/prescriptionSlice'
 import { getUnreadCount } from '../../notifications/notificationSlice'
 import { getConsultations } from '../../consultations/consultationSlice'
-import { getMedicalRecords } from '../../medical-records/medicalRecordsSlice'
+import { Appointment } from '../../appointments/appointmentSlice'
 import StatCard from '../components/StatCard'
 import FeatureCard from '../components/FeatureCard'
 import QuickActionsBar from '../components/QuickActionsBar'
@@ -41,7 +40,7 @@ import RecentActivity, { RecentActivityItem } from '../components/RecentActivity
 
 dayjs.extend(relativeTime)
 
-const DashboardPage: React.FC = () => {
+const DoctorDashboardPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const navigate = useNavigate()
 
@@ -50,80 +49,87 @@ const DashboardPage: React.FC = () => {
   const { prescriptions, loading: loadingPrescriptions } = useSelector((state: RootState) => state.prescriptions)
   const { unreadCount, loadingUnreadCount } = useSelector((state: RootState) => state.notifications)
   const { consultations, loading: loadingConsultations } = useSelector((state: RootState) => state.consultations)
-  const { records: medicalRecordsData, loading: loadingMedicalRecords } = useSelector((state: RootState) => state.medicalRecords)
 
   const [stats, setStats] = useState({
-    total: 0,
+    totalToday: 0,
     upcoming: 0,
     pending: 0,
-    completed: 0,
+    totalPatients: 0,
     activePrescriptions: 0,
     unreadNotifications: 0,
-    recentConsultations: 0,
-    medicalRecords: 0,
+    pendingReschedule: 0,
   })
 
-  // Load all data on component mount
   useEffect(() => {
-    dispatch(getAppointments({ limit: 20 }))
+    dispatch(getAppointments({ limit: 50 }))
     dispatch(getPrescriptions({ limit: 100 }))
     dispatch(getUnreadCount())
     dispatch(getConsultations())
-    if (user?.id || (user as any)?._id) {
-      dispatch(getMedicalRecords(user?.id || (user as any)?._id))
-    }
-  }, [dispatch, user])
+  }, [dispatch])
 
-  // Calculate statistics
   useEffect(() => {
-    const appointmentsArray = (appointments as any)?.items || []
+    const items: Appointment[] = (appointments as any)?.items || (appointments as unknown as Appointment[])
     const prescriptionsArray = prescriptions || []
     const consultationsArray = consultations || []
-    const recordsArray = medicalRecordsData?.records || []
 
     const now = new Date()
-    const statsData = appointmentsArray.reduce(
-      (acc: any, appointment: any) => {
-        acc.total++
-        if (appointment.status === 'pending') acc.pending++
-        if (appointment.status === 'completed') acc.completed++
+    const todayStr = now.toISOString().split('T')[0]
 
-        const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
-        if (appointmentDateTime > now && appointment.status !== 'cancelled' && appointment.status !== 'completed') {
+    const uniquePatients = new Set<string>()
+    let pendingRescheduleCount = 0
+
+    const data = items.reduce(
+      (acc: any, apt: Appointment) => {
+        const dateStr = new Date(apt.date).toISOString().split('T')[0]
+        if (dateStr === todayStr) {
+          acc.totalToday++
+        }
+        if (apt.status === 'pending') {
+          acc.pending++
+        }
+        if (apt.rescheduleStatus === 'pending') {
+          pendingRescheduleCount++
+        }
+
+        const aptDateTime = new Date(`${apt.date}T${apt.time}`)
+        if (aptDateTime > now && apt.status !== 'cancelled' && apt.status !== 'completed') {
           acc.upcoming++
         }
+
+        // Track unique patients
+        const patientId =
+          typeof apt.patientId === 'object' && apt.patientId
+            ? (apt.patientId as any)._id || (apt.patientId as any).id
+            : apt.patientId
+        if (patientId) {
+          uniquePatients.add(String(patientId))
+        }
+
         return acc
       },
-      { total: 0, upcoming: 0, pending: 0, completed: 0 }
+      { totalToday: 0, upcoming: 0, pending: 0 }
     )
 
+    // Count active prescriptions created this month
+    const thisMonth = new Date().getMonth()
+    const thisYear = new Date().getFullYear()
+    const activePrescriptionsCount = prescriptionsArray.filter((p: any) => {
+      if (!p.isActive) return false
+      if (p.createdAt) {
+        const createdDate = new Date(p.createdAt)
+        return createdDate.getMonth() === thisMonth && createdDate.getFullYear() === thisYear
+      }
+      return false
+    }).length
+
     setStats({
-      ...statsData,
-      activePrescriptions: prescriptionsArray.filter((p: any) => p.isActive).length,
+      ...data,
+      totalPatients: uniquePatients.size,
+      activePrescriptions: activePrescriptionsCount,
       unreadNotifications: unreadCount,
-      recentConsultations: consultationsArray.length,
-      medicalRecords: recordsArray.length,
+      pendingReschedule: pendingRescheduleCount,
     })
-  }, [appointments, prescriptions, unreadCount, consultations, medicalRecordsData])
-
-  const getUpcomingAppointments = () => {
-    const appointmentsArray = (appointments as any)?.items || []
-    const now = new Date()
-    return appointmentsArray
-      .filter((appointment: any) => {
-        const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
-        return appointmentDateTime > now && appointment.status !== 'cancelled' && appointment.status !== 'completed'
-      })
-      .slice(0, 5)
-  }
-
-  const getRecentPrescriptions = () => {
-    return (prescriptions || []).slice(0, 3)
-  }
-
-  const getRecentConsultations = () => {
-    return (consultations || []).slice(0, 3)
-  }
+  }, [appointments, prescriptions, unreadCount, consultations])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -135,31 +141,71 @@ const DashboardPage: React.FC = () => {
 
   const formatTime = (timeString: string) => {
     const [hours, minutes] = timeString.split(':')
-    const hour = parseInt(hours)
+    const hour = parseInt(hours, 10)
     const ampm = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
     return `${hour12}:${minutes} ${ampm}`
   }
 
-  // Quick actions for patient
+  const getUpcomingAppointments = (): Appointment[] => {
+    const items: Appointment[] = (appointments as any)?.items || (appointments as unknown as Appointment[])
+    const now = new Date()
+    return items
+      .filter((apt) => {
+        const aptDateTime = new Date(`${apt.date}T${apt.time}`)
+        return aptDateTime > now && apt.status !== 'cancelled'
+      })
+      .slice(0, 5)
+  }
+
+  const getPendingToday = (): Appointment[] => {
+    const items = (appointments as any)?.items || (appointments as unknown as Appointment[])
+    const todayStr = new Date().toISOString().split('T')[0]
+    return items.filter((apt: Appointment) => {
+      const dateStr = new Date(apt.date).toISOString().split('T')[0]
+      return dateStr === todayStr && apt.status === 'pending'
+    })
+  }
+
+  const getPendingRescheduleRequests = (): Appointment[] => {
+    const items = (appointments as any)?.items || (appointments as unknown as Appointment[])
+    return items.filter((apt: Appointment) => apt.rescheduleStatus === 'pending')
+  }
+
+  const getRecentPrescriptions = () => {
+    return (prescriptions || []).slice(0, 3)
+  }
+
+  const getRecentConsultations = () => {
+    return (consultations || []).slice(0, 3)
+  }
+
+  // Quick actions for doctor
   const quickActions = [
     {
-      label: 'Book Appointment',
-      icon: <AddIcon />,
-      onClick: () => navigate('/doctors'),
+      label: 'View Schedule',
+      icon: <ScheduleIcon />,
+      to: '/appointments/doctor/schedule',
       variant: 'contained' as const,
       color: 'primary' as const,
     },
     {
-      label: 'View Appointments',
-      icon: <CalendarIcon />,
-      to: '/appointments/my',
+      label: 'Start Consultation',
+      icon: <VideocamIcon />,
+      onClick: () => {
+        const upcoming = getUpcomingAppointments()
+        if (upcoming.length > 0) {
+          navigate(`/consultation/${upcoming[0].id || upcoming[0]._id}`)
+        } else {
+          navigate('/appointments/doctor/schedule')
+        }
+      },
       variant: 'outlined' as const,
     },
     {
-      label: 'Find Doctors',
-      icon: <SearchIcon />,
-      to: '/doctors',
+      label: 'Create Prescription',
+      icon: <AddIcon />,
+      to: '/prescriptions/create',
       variant: 'outlined' as const,
     },
     {
@@ -170,43 +216,43 @@ const DashboardPage: React.FC = () => {
     },
   ]
 
-  // Feature cards for patient
+  // Feature cards for doctor
   const featureCards = [
     {
-      icon: <CalendarIcon />,
-      title: 'Appointments',
-      description: 'Manage your healthcare appointments',
-      to: '/appointments/my',
-      statsValue: stats.upcoming,
-      statsLabel: stats.upcoming > 0 ? 'Upcoming' : undefined,
-      actionLabel: 'View All',
+      icon: <ScheduleIcon />,
+      title: 'Schedule',
+      description: 'Manage your appointments',
+      to: '/appointments/doctor/schedule',
+      statsValue: stats.totalToday,
+      statsLabel: stats.totalToday > 0 ? "Today's" : undefined,
+      actionLabel: 'View Schedule',
     },
     {
       icon: <VideocamIcon />,
       title: 'Consultations',
       description: 'Video and chat consultations',
-      to: '/appointments/my',
-      statsValue: stats.recentConsultations,
-      statsLabel: stats.recentConsultations > 0 ? 'Recent' : undefined,
-      actionLabel: 'View History',
+      to: '/appointments/doctor/schedule',
+      statsValue: consultations?.filter((c: any) => c.status === 'active').length || 0,
+      statsLabel: 'Active',
+      actionLabel: 'Start Consultation',
     },
     {
       icon: <MedicationIcon />,
       title: 'Prescriptions',
-      description: 'View and download prescriptions',
+      description: 'Create and manage prescriptions',
       to: '/prescriptions',
       statsValue: stats.activePrescriptions,
-      statsLabel: stats.activePrescriptions > 0 ? 'Active' : undefined,
-      actionLabel: 'View All',
+      statsLabel: stats.activePrescriptions > 0 ? 'This month' : undefined,
+      actionLabel: 'Create New',
     },
     {
-      icon: <HospitalIcon />,
-      title: 'Medical Records',
-      description: 'Your complete health history',
-      to: '/medical-records',
-      statsValue: stats.medicalRecords,
-      statsLabel: stats.medicalRecords > 0 ? 'Records' : undefined,
-      actionLabel: 'View Records',
+      icon: <PeopleIcon />,
+      title: 'Patients',
+      description: 'View your patients',
+      to: '/appointments/doctor/schedule',
+      statsValue: stats.totalPatients,
+      statsLabel: stats.totalPatients > 0 ? 'Total' : undefined,
+      actionLabel: 'View Patients',
     },
     {
       icon: <NotificationsIcon />,
@@ -220,9 +266,16 @@ const DashboardPage: React.FC = () => {
     {
       icon: <ChatIcon />,
       title: 'Chat',
-      description: 'Message your doctors',
+      description: 'Message your patients',
       to: '/chat',
       actionLabel: 'Open Chat',
+    },
+    {
+      icon: <TimeIcon />,
+      title: 'Availability',
+      description: 'Manage your schedule',
+      to: '/profile/availability',
+      actionLabel: 'Manage',
     },
     {
       icon: <PersonIcon />,
@@ -231,19 +284,12 @@ const DashboardPage: React.FC = () => {
       to: '/profile',
       actionLabel: 'Edit Profile',
     },
-    {
-      icon: <SearchIcon />,
-      title: 'Find Doctors',
-      description: 'Browse available doctors',
-      to: '/doctors',
-      actionLabel: 'Browse Doctors',
-    },
   ]
 
   // Recent activity items
-  const recentAppointments: RecentActivityItem[] = getUpcomingAppointments().map((apt: any) => ({
-    id: apt.id || apt._id,
-    title: `Dr. ${apt.doctorId?.name || 'Unknown Doctor'}`,
+  const recentAppointments: RecentActivityItem[] = getUpcomingAppointments().map((apt: Appointment) => ({
+    id: apt.id || apt._id || '',
+    title: (apt.patientId as any)?.name || 'Patient',
     subtitle: `${formatDate(apt.date)} at ${formatTime(apt.time)}`,
     statusLabel: apt.status === 'confirmed' ? 'Confirmed' : 'Pending',
     statusColor: apt.status === 'confirmed' ? 'success' : 'warning',
@@ -264,12 +310,35 @@ const DashboardPage: React.FC = () => {
     title: 'Consultation',
     subtitle: consultation.startTime ? dayjs(consultation.startTime).format('MMM D, YYYY h:mm A') : '',
     statusLabel: consultation.status,
-    statusColor: consultation.status === 'completed' ? 'success' : consultation.status === 'active' ? 'primary' : 'default',
+    statusColor:
+      consultation.status === 'completed'
+        ? 'success'
+        : consultation.status === 'active'
+        ? 'primary'
+        : 'default',
     link: `/consultations/${consultation._id || consultation.id}`,
   }))
 
-  const isLoading =
-    loadingAppointments || loadingPrescriptions || loadingUnreadCount || loadingConsultations || loadingMedicalRecords
+  const pendingActions: RecentActivityItem[] = [
+    ...getPendingRescheduleRequests().slice(0, 3).map((apt: Appointment) => ({
+      id: apt.id || apt._id || '',
+      title: `Reschedule: ${(apt.patientId as any)?.name || 'Patient'}`,
+      subtitle: `Requested: ${formatDate(apt.rescheduleNewDate as any)} at ${apt.rescheduleNewTime}`,
+      statusLabel: 'Pending',
+      statusColor: 'warning' as const,
+      link: `/appointments/${apt.id || apt._id}`,
+    })),
+    ...getPendingToday().slice(0, 2).map((apt: Appointment) => ({
+      id: apt.id || apt._id || '',
+      title: `Confirm: ${(apt.patientId as any)?.name || 'Patient'}`,
+      subtitle: `${formatTime(apt.time)} • ${formatDate(apt.date)}`,
+      statusLabel: 'Pending',
+      statusColor: 'warning' as const,
+      link: `/appointments/${apt.id || apt._id}`,
+    })),
+  ]
+
+  const isLoading = loadingAppointments || loadingPrescriptions || loadingUnreadCount || loadingConsultations
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -281,13 +350,13 @@ const DashboardPage: React.FC = () => {
               variant="overline"
               sx={{ display: 'block', mb: 2, letterSpacing: 2, color: 'text.secondary' }}
             >
-              Dashboard
+              Doctor Dashboard
             </Typography>
             <Typography variant="h3" sx={{ fontWeight: 600, mb: 1 }}>
-              Welcome back, {user?.name}!
+              Welcome back, Dr. {user?.name}
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Manage your healthcare appointments and stay connected with your doctors.
+              Review your schedule, manage upcoming consultations, and stay prepared for your patients.
             </Typography>
           </Box>
         </Container>
@@ -301,19 +370,19 @@ const DashboardPage: React.FC = () => {
         <Container maxWidth="xl">
           <Grid container spacing={3}>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Total Appointments" value={stats.total} icon={<MedicalIcon />} />
+              <StatCard title="Today's Appointments" value={stats.totalToday} icon={<CalendarIcon />} />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard title="Pending Confirmations" value={stats.pending} icon={<ScheduleIcon />} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard title="Upcoming" value={stats.upcoming} icon={<EventIcon />} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Pending" value={stats.pending} icon={<ScheduleIcon />} />
+              <StatCard title="Total Patients" value={stats.totalPatients} icon={<PeopleIcon />} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Completed" value={stats.completed} icon={<CheckCircleIcon />} />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Active Prescriptions" value={stats.activePrescriptions} icon={<MedicationIcon />} />
+              <StatCard title="Prescriptions (Month)" value={stats.activePrescriptions} icon={<MedicationIcon />} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
@@ -323,10 +392,10 @@ const DashboardPage: React.FC = () => {
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Consultations" value={stats.recentConsultations} icon={<VideocamIcon />} />
+              <StatCard title="Pending Reschedule" value={stats.pendingReschedule} icon={<TimeIcon />} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Medical Records" value={stats.medicalRecords} icon={<HospitalIcon />} />
+              <StatCard title="Consultations" value={consultations?.length || 0} icon={<VideocamIcon />} />
             </Grid>
           </Grid>
         </Container>
@@ -363,7 +432,13 @@ const DashboardPage: React.FC = () => {
               />
               {recentAppointments.length > 0 && (
                 <Box sx={{ mt: 2 }}>
-                  <Button component={Link} to="/appointments/my" variant="text" size="small" fullWidth>
+                  <Button
+                    component={Link}
+                    to="/appointments/doctor/schedule"
+                    variant="text"
+                    size="small"
+                    fullWidth
+                  >
                     View All Appointments →
                   </Button>
                 </Box>
@@ -373,7 +448,7 @@ const DashboardPage: React.FC = () => {
               <RecentActivity
                 title="Recent Prescriptions"
                 items={recentPrescriptions}
-                emptyMessage="No prescriptions yet"
+                emptyMessage="No prescriptions created yet"
               />
               {recentPrescriptions.length > 0 && (
                 <Box sx={{ mt: 2 }}>
@@ -385,14 +460,20 @@ const DashboardPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <RecentActivity
-                title="Recent Consultations"
-                items={recentConsultations}
-                emptyMessage="No consultations yet"
+                title="Pending Actions"
+                items={pendingActions}
+                emptyMessage="No pending actions"
               />
-              {recentConsultations.length > 0 && (
+              {pendingActions.length > 0 && (
                 <Box sx={{ mt: 2 }}>
-                  <Button component={Link} to="/appointments/my" variant="text" size="small" fullWidth>
-                    View All Consultations →
+                  <Button
+                    component={Link}
+                    to="/appointments/doctor/schedule"
+                    variant="text"
+                    size="small"
+                    fullWidth
+                  >
+                    View All →
                   </Button>
                 </Box>
               )}
@@ -423,4 +504,4 @@ const DashboardPage: React.FC = () => {
   )
 }
 
-export default DashboardPage
+export default DoctorDashboardPage

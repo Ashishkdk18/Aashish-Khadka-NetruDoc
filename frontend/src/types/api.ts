@@ -100,14 +100,39 @@ export interface PaymentResponse {
   transactionId?: string
 }
 
+export type NotificationType =
+  | 'appointment_created'
+  | 'appointment_confirmed'
+  | 'appointment_cancelled'
+  | 'appointment_reminder'
+  | 'appointment_reschedule_requested'
+  | 'appointment_reschedule_approved'
+  | 'appointment_reschedule_rejected'
+  | 'consultation_started'
+  | 'consultation_ended'
+  | 'prescription_created'
+  | 'payment_success'
+  | 'payment_failed'
+  | 'system_announcement'
+  | 'message'
+  | 'other'
+
+export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent'
+
 export interface NotificationResponse {
   id: string
   userId: string
   title: string
   message: string
-  type: 'info' | 'success' | 'warning' | 'error'
+  type: NotificationType
   isRead: boolean
+  readAt?: string
+  link?: string
+  metadata?: Record<string, any>
+  priority?: NotificationPriority
+  expiresAt?: string
   createdAt: string
+  updatedAt?: string
 }
 
 // API Error types

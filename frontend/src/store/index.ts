@@ -6,6 +6,8 @@ import consultationReducer from '../features/consultations/consultationSlice'
 import prescriptionReducer from '../features/prescriptions/prescriptionSlice'
 import paymentReducer from '../features/payments/paymentSlice'
 import notificationReducer from '../features/notifications/notificationSlice'
+import chatReducer from '../features/chat/chatSlice'
+import medicalRecordsReducer from '../features/medical-records/medicalRecordsSlice'
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +18,8 @@ export const store = configureStore({
     prescriptions: prescriptionReducer,
     payments: paymentReducer,
     notifications: notificationReducer,
+    chat: chatReducer,
+    medicalRecords: medicalRecordsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

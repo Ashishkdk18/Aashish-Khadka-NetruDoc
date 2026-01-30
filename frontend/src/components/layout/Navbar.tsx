@@ -19,6 +19,7 @@ import { Menu as MenuIcon } from '@mui/icons-material'
 import { useSelector, useDispatch } from 'react-redux'
 import { RootState, AppDispatch } from '../../store'
 import { logout } from '../../features/auth/authSlice'
+import NotificationDropdown from '../../features/notifications/components/NotificationDropdown'
 
 const Navbar: React.FC = () => {
   const theme = useTheme()
@@ -56,6 +57,11 @@ const Navbar: React.FC = () => {
         ))}
         {isAuthenticated && (
           <>
+            <ListItem disablePadding>
+              <ListItemButton component={Link} to="/notifications" onClick={handleMobileMenuToggle}>
+                <ListItemText primary="Notifications" />
+              </ListItemButton>
+            </ListItem>
             <ListItem disablePadding>
               <ListItemButton component={Link} to="/dashboard" onClick={handleMobileMenuToggle}>
                 <ListItemText primary="Dashboard" />
@@ -134,20 +140,24 @@ const Navbar: React.FC = () => {
 
               {isAuthenticated ? (
                 <>
+                  <NotificationDropdown />
+                  <Button color="inherit" component={Link} to="/notifications">
+                    Notifications
+                  </Button>
                   <Button color="inherit" component={Link} to="/dashboard">
                     Dashboard
                   </Button>
                   <Button color="inherit" component={Link} to="/profile">
                     Profile
                   </Button>
-                  <Button color="inherit" onClick={handleLogout}>
-                    Logout
-                  </Button>
                   {user?.role === 'admin' && (
                     <Button color="inherit" component={Link} to="/admin/dashboard">
                       Admin
                     </Button>
                   )}
+                  <Button color="inherit" onClick={handleLogout}>
+                    Logout
+                  </Button>
                 </>
               ) : (
                 <>

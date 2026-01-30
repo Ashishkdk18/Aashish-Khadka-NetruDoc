@@ -39,9 +39,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles }) => {
     // Redirect based on user role
     if (user.role === 'admin') {
       return <Navigate to="/admin/dashboard" replace />
-    } else {
-      return <Navigate to="/dashboard" replace />
     }
+    if (user.role === 'doctor') {
+      return <Navigate to="/doctor/dashboard" replace />
+    }
+    return <Navigate to="/dashboard" replace />
+  }
+
+  // If no explicit roles are given and this is the generic dashboard route,
+  // send doctors to their dedicated dashboard while patients stay on /dashboard
+  if (!roles && user && location.pathname === '/dashboard' && user.role === 'doctor') {
+    return <Navigate to="/doctor/dashboard" replace />
   }
 
   return <>{children}</>

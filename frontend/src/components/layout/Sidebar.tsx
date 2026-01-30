@@ -29,7 +29,13 @@ const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
 
     // Authenticated menu items
     const authenticatedMenuItems = [
-        { label: 'Dashboard', path: '/dashboard' },
+        {
+            label: 'Dashboard',
+            path: user?.role === 'doctor' ? '/doctor/dashboard' : '/dashboard',
+        },
+        { label: 'Notifications', path: '/notifications' },
+        { label: 'Medical Records', path: '/medical-records' },
+        { label: 'Prescriptions', path: '/prescriptions' },
         { label: 'Profile', path: '/profile' },
     ];
 
@@ -93,6 +99,24 @@ const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
                                         <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
                                         <span>Admin Dashboard</span>
                                     </Link>
+                                )}
+                                {user?.role === 'doctor' && (
+                                    <>
+                                        <Link
+                                            to="/appointments/doctor/schedule"
+                                            className="group flex items-center space-x-4 text-2xl md:text-3xl font-display font-medium text-primary hover:opacity-100 opacity-60 transition-all duration-300"
+                                        >
+                                            <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
+                                            <span>My Schedule</span>
+                                        </Link>
+                                        <Link
+                                            to="/profile/availability"
+                                            className="group flex items-center space-x-4 text-2xl md:text-3xl font-display font-medium text-primary hover:opacity-100 opacity-60 transition-all duration-300"
+                                        >
+                                            <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
+                                            <span>Availability</span>
+                                        </Link>
+                                    </>
                                 )}
                                 <button
                                     onClick={handleLogout}

@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { logout } from '../../features/auth/authSlice';
 import Sidebar from './Sidebar';
+import NotificationDropdown from '../../features/notifications/components/NotificationDropdown';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -46,53 +47,63 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
                 <div className="flex items-center space-x-4">
                     {isAuthenticated && (
-                        <div className="relative user-menu">
-                            <button
-                                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                className="flex items-center space-x-2 text-sm font-medium uppercase tracking-widest hover:text-accent transition-colors"
-                            >
-                                <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white font-bold">
-                                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                                </div>
-                                <span>{user?.name}</span>
-                            </button>
+                        <>
+                            <NotificationDropdown />
+                            <div className="relative user-menu">
+                                <button
+                                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                    className="flex items-center space-x-2 text-sm font-medium uppercase tracking-widest hover:text-accent transition-colors"
+                                >
+                                    <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white font-bold">
+                                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                    </div>
+                                    <span>{user?.name}</span>
+                                </button>
 
-                            {isUserMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 bg-background border border-gray-200 rounded-md shadow-lg z-50">
-                                    <div className="py-1">
-                                        <Link
-                                            to="/profile"
-                                            className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
-                                            onClick={() => setIsUserMenuOpen(false)}
-                                        >
-                                            Profile
-                                        </Link>
-                                        <Link
-                                            to="/dashboard"
-                                            className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
-                                            onClick={() => setIsUserMenuOpen(false)}
-                                        >
-                                            Dashboard
-                                        </Link>
-                                        {user?.role === 'admin' && (
+                                {isUserMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-background border border-gray-200 rounded-md shadow-lg z-50">
+                                        <div className="py-1">
                                             <Link
-                                                to="/admin/dashboard"
+                                                to="/profile"
                                                 className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
                                                 onClick={() => setIsUserMenuOpen(false)}
                                             >
-                                                Admin Dashboard
+                                                Profile
                                             </Link>
-                                        )}
-                                        <button
-                                            onClick={handleLogout}
-                                            className="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-50"
-                                        >
-                                            Logout
-                                        </button>
+                                            <Link
+                                                to="/notifications"
+                                                className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                Notifications
+                                            </Link>
+                                            <Link
+                                                to="/dashboard"
+                                                className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                Dashboard
+                                            </Link>
+                                            {user?.role === 'admin' && (
+                                                <Link
+                                                    to="/admin/dashboard"
+                                                    className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
+                                                    onClick={() => setIsUserMenuOpen(false)}
+                                                >
+                                                    Admin Dashboard
+                                                </Link>
+                                            )}
+                                            <button
+                                                onClick={handleLogout}
+                                                className="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-50"
+                                            >
+                                                Logout
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        </>
                     )}
 
                     <button

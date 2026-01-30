@@ -7,6 +7,7 @@ export { default as consultationService } from './consultationService'
 export { default as prescriptionService } from './prescriptionService'
 export { default as paymentService } from './paymentService'
 export { default as notificationService } from './notificationService'
+export { default as socketManager, SocketManager } from './socketService'
 
 // Export types
 export * from '../types/api'

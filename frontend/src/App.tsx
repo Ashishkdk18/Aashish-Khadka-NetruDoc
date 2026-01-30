@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { Box } from '@mui/material'
 import { useDispatch } from 'react-redux'
 import { AppDispatch } from './store'
-import { loadUser } from './features/auth/authSlice'
+import { loadUser, setLoading } from './features/auth/authSlice'
 
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -28,20 +28,36 @@ import MyAppointmentsPage from './features/appointments/pages/MyAppointmentsPage
 import DoctorSchedulePage from './features/appointments/pages/DoctorSchedulePage'
 import ConsultationPage from './features/consultations/pages/ConsultationPage'
 import PrescriptionListPage from './features/prescriptions/pages/PrescriptionListPage'
+import PrescriptionDetailsPage from './features/prescriptions/pages/PrescriptionDetailsPage'
+import CreatePrescriptionPage from './features/prescriptions/pages/CreatePrescriptionPage'
 import PaymentPage from './features/payments/pages/PaymentPage'
 import DashboardPage from './features/dashboard/pages/DashboardPage'
+import DoctorDashboardPage from './features/dashboard/pages/DoctorDashboardPage'
 import AdminDashboardPage from './features/dashboard/pages/AdminDashboardPage'
 import AdminHospitalsPage from './features/hospitals/pages/AdminHospitalsPage'
 import AdminHospitalProfilePage from './features/hospitals/pages/AdminHospitalProfilePage'
 import AdminAppointmentsPage from './features/appointments/pages/AdminAppointmentsPage'
+import AppointmentDetailsPage from './features/appointments/pages/AppointmentDetailsPage'
+import NotificationsPage from './features/notifications/pages/NotificationsPage'
+import ChatPage from './features/chat/pages/ChatPage'
+import ConsultationDetailsPage from './features/consultations/pages/ConsultationDetailsPage'
+import MedicalRecordsPage from './features/medical-records/pages/MedicalRecordsPage'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
 
   useEffect(() => {
     // Load user on app startup if token exists
-    dispatch(loadUser())
-  }, [dispatch])
+    const token = localStorage.getItem('token')
+    if (token) {
+      console.log('App: Loading user on startup')
+      dispatch(loadUser())
+    } else {
+      console.log('App: No token found, skipping user load')
+      // Ensure loading state is reset when no token exists
+      dispatch(setLoading(false))
+    }
+  }, [dispatch]) // Only run once on mount
 
   return (
     <Layout>
@@ -79,6 +95,12 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/appointments/:id" element={
+          <ProtectedRoute>
+            <AppointmentDetailsPage />
+          </ProtectedRoute>
+        } />
+
         <Route path="/appointments/doctor/schedule" element={
           <ProtectedRoute roles={['doctor']}>
             <DoctorSchedulePage />
@@ -97,9 +119,51 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/consultations/:id" element={
+          <ProtectedRoute>
+            <ConsultationDetailsPage />
+          </ProtectedRoute>
+        } />
+
         <Route path="/prescriptions" element={
           <ProtectedRoute>
             <PrescriptionListPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/prescriptions/create" element={
+          <ProtectedRoute roles={['doctor']}>
+            <CreatePrescriptionPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/prescriptions/:id" element={
+          <ProtectedRoute>
+            <PrescriptionDetailsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/medical-records" element={
+          <ProtectedRoute>
+            <MedicalRecordsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/medical-records/:patientId" element={
+          <ProtectedRoute roles={['doctor', 'admin']}>
+            <MedicalRecordsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <NotificationsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/chat" element={
+          <ProtectedRoute>
+            <ChatPage />
           </ProtectedRoute>
         } />
 
@@ -113,6 +177,12 @@ function App() {
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/doctor/dashboard" element={
+          <ProtectedRoute roles={['doctor']}>
+            <DoctorDashboardPage />
           </ProtectedRoute>
         } />
 

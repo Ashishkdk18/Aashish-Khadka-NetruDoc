@@ -10,6 +10,11 @@ const defaultConfig: ApiConfig = {
     },
 }
 
+// Log current API configuration for debugging
+if (import.meta.env.DEV) {
+    console.log('API Client configured with baseURL:', defaultConfig.baseURL)
+}
+
 class ApiClient {
     private client: AxiosInstance
 
@@ -117,7 +122,15 @@ class ApiClient {
 
     // Utility methods for common operations
     setAuthToken(token: string): void {
-        localStorage.setItem('token', token)
+        try {
+            if (!token || typeof token !== 'string') {
+                throw new Error('Invalid token provided');
+            }
+            localStorage.setItem('token', token)
+        } catch (error) {
+            console.error('Failed to store token:', error);
+            throw error;
+        }
     }
 
     removeAuthToken(): void {
