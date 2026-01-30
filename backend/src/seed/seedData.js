@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import User from '../features/users/models/userModel.js';
 import Hospital from '../features/hospitals/models/hospitalModel.js';
+import { defaultAvailability } from '../features/users/utils/defaultAvailability.js';
 
 /**
  * Seed data for initial database setup
@@ -60,15 +61,7 @@ export const sampleDoctors = [
     ],
     hospital: 'Bir Hospital',
     consultationFee: 1500,
-    availability: {
-      monday: { start: '09:00', end: '17:00', available: true },
-      tuesday: { start: '09:00', end: '17:00', available: true },
-      wednesday: { start: '09:00', end: '17:00', available: true },
-      thursday: { start: '09:00', end: '17:00', available: true },
-      friday: { start: '09:00', end: '17:00', available: true },
-      saturday: { start: '09:00', end: '12:00', available: true },
-      sunday: { start: '', end: '', available: false }
-    },
+    availability: defaultAvailability,
     rating: 4.8,
     totalReviews: 45,
     isActive: true,
@@ -94,15 +87,7 @@ export const sampleDoctors = [
     qualifications: ['MBBS', 'MD Pediatrics', 'Diploma in Child Health'],
     hospital: 'Patan Hospital',
     consultationFee: 1200,
-    availability: {
-      monday: { start: '10:00', end: '16:00', available: true },
-      tuesday: { start: '10:00', end: '16:00', available: true },
-      wednesday: { start: '10:00', end: '16:00', available: true },
-      thursday: { start: '10:00', end: '16:00', available: true },
-      friday: { start: '10:00', end: '16:00', available: true },
-      saturday: { start: '10:00', end: '13:00', available: true },
-      sunday: { start: '', end: '', available: false }
-    },
+    availability: defaultAvailability,
     rating: 4.9,
     totalReviews: 32,
     isActive: true,
