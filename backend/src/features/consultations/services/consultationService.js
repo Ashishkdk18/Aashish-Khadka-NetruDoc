@@ -127,6 +127,26 @@ export class ConsultationService extends BaseService {
   }
 
   /**
+   * Update consultation diagnosis
+   * @param {String} consultationId - Consultation ID
+   * @param {Array<String>} diagnosis - Diagnosis array
+   * @returns {Promise<Object>}
+   */
+  async updateDiagnosis(consultationId, diagnosis) {
+    return this.update(consultationId, { diagnosis });
+  }
+
+  /**
+   * Update consultation symptoms
+   * @param {String} consultationId - Consultation ID
+   * @param {Array<String>} symptoms - Symptoms array
+   * @returns {Promise<Object>}
+   */
+  async updateSymptoms(consultationId, symptoms) {
+    return this.update(consultationId, { symptoms });
+  }
+
+  /**
    * Upload consultation media
    * @param {String} consultationId - Consultation ID
    * @param {Object} mediaData - Media data
