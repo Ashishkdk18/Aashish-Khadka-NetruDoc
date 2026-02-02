@@ -368,13 +368,19 @@ const AppointmentBookingPage: React.FC = () => {
                 multiline
                 rows={3}
                 label="Appointment Reason *"
-                placeholder="Please describe the reason for your appointment..."
+                placeholder="Please describe the reason for your appointment (at least 10 characters)..."
                 value={formik.values.reason}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 name="reason"
                 error={formik.touched.reason && Boolean(formik.errors.reason)}
-                helperText={formik.touched.reason && formik.errors.reason}
+                helperText={
+                  formik.touched.reason && formik.errors.reason
+                    ? formik.errors.reason
+                    : formik.touched.reason
+                      ? `${formik.values.reason.length}/500 (min 10 characters)`
+                      : 'Min 10 characters required'
+                }
               />
             </Box>
 
@@ -420,6 +426,25 @@ const AppointmentBookingPage: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Confirm Your Appointment
             </Typography>
+
+            {/* Show validation errors on step 2 when Confirm Booking was clicked but validation failed */}
+            {formik.submitCount > 0 && Object.keys(formik.errors).length > 0 && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Please fix the following before booking:
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                  {Object.entries(formik.errors).map(([field, msg]) => (
+                    <li key={field}>
+                      {field === 'date' && 'Date: '}
+                      {field === 'time' && 'Time: '}
+                      {field === 'reason' && 'Reason: '}
+                      {field === 'notes' && 'Notes: '}
+                      {typeof msg === 'string' ? msg : String(msg)}
+                    </li>
+                  ))}
+                </ul>
+                Use Back to correct the details.
+              </Alert>
+            )}
 
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
@@ -487,7 +512,12 @@ const AppointmentBookingPage: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleNext}
-                disabled={!formik.values.date || !formik.values.time || !formik.values.reason.trim()}
+                disabled={
+                  !formik.values.date ||
+                  !formik.values.time ||
+                  !formik.values.reason?.trim() ||
+                  formik.values.reason.trim().length < 10
+                }
               >
                 Continue to Pre-Consultation Form
               </Button>
