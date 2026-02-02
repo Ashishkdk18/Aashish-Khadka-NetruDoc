@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Container,
   Paper,
@@ -14,9 +14,10 @@ import { useFormik } from 'formik'
 import * as Yup from 'yup'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../../store'
-import { forgotPassword, clearError } from '../authSlice'
+import { forgotPassword, resetPassword, clearError } from '../authSlice'
 
 const ForgotPasswordPage: React.FC = () => {
+  const navigate = useNavigate()
   const dispatch = useDispatch<AppDispatch>()
   const { loading, error } = useSelector((state: RootState) => state.auth)
   const [step, setStep] = useState<'email' | 'otp' | 'reset'>('email')
@@ -25,6 +26,7 @@ const ForgotPasswordPage: React.FC = () => {
   const [resendDisabled, setResendDisabled] = useState(false)
   const [resendCountdown, setResendCountdown] = useState(0)
   const [resetEmail, setResetEmail] = useState('')
+  const [resetSuccess, setResetSuccess] = useState(false)
 
   const formik = useFormik({
     initialValues: {
@@ -60,8 +62,8 @@ const ForgotPasswordPage: React.FC = () => {
         // Verify OTP
         await handleVerifyOTP(values.email, values.otp)
       } else if (step === 'reset') {
-        // Reset password
-        await handleResetPassword(values.email, values.otp, values.password)
+        // Reset password (use resetEmail and otpCode from previous steps)
+        await handleResetPassword(resetEmail, otpCode, values.password)
       }
     },
   })
@@ -91,12 +93,12 @@ const ForgotPasswordPage: React.FC = () => {
 
   // Handle password reset
   const handleResetPassword = async (email: string, otp: string, password: string) => {
-    try {
-      // This would need to be implemented in the auth API
-      console.log('Resetting password for:', email, 'with OTP:', otp, 'new password length:', password.length)
-      // await dispatch(resetPassword({ email, otp, password }))
-    } catch (error) {
-      console.error('Failed to reset password:', error)
+    const result = await dispatch(resetPassword({ email, otp, password }))
+    if (resetPassword.fulfilled.match(result)) {
+      setResetSuccess(true)
+      setTimeout(() => {
+        navigate('/login')
+      }, 3000)
     }
   }
 
@@ -104,13 +106,7 @@ const ForgotPasswordPage: React.FC = () => {
   const handleResendOTP = async () => {
     setResendDisabled(true)
     startResendCountdown()
-
-    try {
-      console.log('Resending password reset OTP to:', resetEmail)
-      // await dispatch(forgotPassword(resetEmail))
-    } catch (error) {
-      console.error('Failed to resend OTP:', error)
-    }
+    await dispatch(forgotPassword(resetEmail))
   }
 
   // Start resend countdown
@@ -157,6 +153,18 @@ const ForgotPasswordPage: React.FC = () => {
         {step === 'otp' && otpError && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {otpError}
+          </Alert>
+        )}
+
+        {step === 'reset' && error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {resetSuccess && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            Password reset successfully! Redirecting to login page...
           </Alert>
         )}
 
@@ -241,7 +249,7 @@ const ForgotPasswordPage: React.FC = () => {
             </>
           )}
 
-          {step === 'reset' && (
+          {step === 'reset' && !resetSuccess && (
             <>
               <TextField
                 margin="normal"
@@ -285,6 +293,14 @@ const ForgotPasswordPage: React.FC = () => {
                 {loading ? <CircularProgress size={24} /> : 'Reset Password'}
               </Button>
             </>
+          )}
+
+          {step === 'reset' && resetSuccess && (
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button component={Link} to="/login" variant="contained" sx={{ mt: 2 }}>
+                Go to Login
+              </Button>
+            </Box>
           )}
 
           <Box sx={{ textAlign: 'center' }}>
