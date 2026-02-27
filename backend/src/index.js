@@ -25,6 +25,7 @@ import chatRoutes from './features/chat/routes.js';
 import medicalRecordsRoutes from './features/medical-records/routes.js';
 
 // Import middleware
+import socketAuth from './middleware/socketAuth.js';
 import errorHandler from './middleware/errorHandler.js';
 import notFound from './middleware/notFound.js';
 
@@ -35,8 +36,35 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // Allow localhost variations for development
+      if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        return callback(null, true);
+      }
+
+      // Allow local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 169.254.x.x)
+      if (origin && /^(https?:\/\/)?(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.)\d+\.\d+:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // For development, allow all origins to make testing easier
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+
+      // Default: allow the configured CLIENT_URL
+      const allowedOrigin = process.env.CLIENT_URL || "http://localhost:3000";
+      if (origin === allowedOrigin) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ["GET", "POST"]
   }
 });
 
@@ -119,6 +147,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/medical-records', medicalRecordsRoutes);
 
 // Socket.io connection handling
+io.use(socketAuth);
 registerSocketHandlers(io);
 
 // Error handling middleware

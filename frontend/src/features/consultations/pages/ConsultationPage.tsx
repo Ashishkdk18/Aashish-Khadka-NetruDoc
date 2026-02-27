@@ -14,6 +14,16 @@ import {
   Collapse,
   CircularProgress,
   Chip,
+  Snackbar,
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Dialog as MuiDialog,
+  DialogTitle as MuiDialogTitle,
+  DialogContent as MuiDialogContent,
+  DialogActions as MuiDialogActions,
 } from '@mui/material'
 import {
   Call as CallIcon,
@@ -27,6 +37,9 @@ import {
   ExpandLess as ExpandLessIcon,
   CheckCircle as CheckCircleIcon,
   Add as AddIcon,
+  Settings as SettingsIcon,
+  ScreenShare as ScreenShareIcon,
+  StopScreenShare as StopScreenShareIcon,
 } from '@mui/icons-material'
 import { useSocket, useSocketEvent } from '../../../hooks/useSocket'
 import { WebRtcClient } from '../webrtcClient'
@@ -34,10 +47,14 @@ import consultationApi from '../api/consultationApi'
 import { updateNotes, setCurrentConsultation } from '../consultationSlice'
 import { AppDispatch, RootState } from '../../../store/index'
 import CreatePrescriptionForm from '../../prescriptions/components/CreatePrescriptionForm'
+import dayjs from 'dayjs'
+import duration from 'dayjs/plugin/duration'
+
+dayjs.extend(duration)
 
 const ConsultationPage: React.FC = () => {
   const { appointmentId } = useParams()
-  const { socket, emit } = useSocket()
+  const { socket, emit, isConnected } = useSocket()
   const dispatch = useDispatch<AppDispatch>()
   const { user } = useSelector((state: RootState) => state.auth)
   const { currentConsultation, updatingNotes } = useSelector((state: RootState) => state.consultations)
@@ -51,72 +68,65 @@ const ConsultationPage: React.FC = () => {
   const [consultationId, setConsultationId] = useState<string | null>(null)
   const [prescriptionDialogOpen, setPrescriptionDialogOpen] = useState(false)
 
+  // New states for connection status and feedback
+  const [callStatus, setCallStatus] = useState<'idle' | 'ready' | 'connecting' | 'connected' | 'ended' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [callDuration, setCallDuration] = useState(0)
+  const [callStartTime, setCallStartTime] = useState<Date | null>(null)
+  const [useScreenShare, setUseScreenShare] = useState(false)
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false)
+  const [audioOnly, setAudioOnly] = useState(false)
+  const [availableDevices, setAvailableDevices] = useState<{ cameras: MediaDeviceInfo[], microphones: MediaDeviceInfo[] }>({ cameras: [], microphones: [] })
+  const [showDeviceDialog, setShowDeviceDialog] = useState(false)
+  const [selectedCamera, setSelectedCamera] = useState<string>('')
+  const [selectedMicrophone, setSelectedMicrophone] = useState<string>('')
+
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
   const webrtcRef = useRef<WebRtcClient | null>(null)
+  const screenShareStreamRef = useRef<MediaStream | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const appointmentIdRef = useRef<string | undefined>(appointmentId)
+  const hasJoinedRoomRef = useRef(false)
+  const isInitializingWebRTCRef = useRef(false)
+  const isCreatingOfferRef = useRef(false)
 
   const isDoctor = user?.role === 'doctor'
+
+  // We use appointmentId as the consultation room key (server maps it to a room name).
+  const currentAppointmentId = appointmentId
 
   useEffect(() => {
     let cancelled = false
 
-    ;(async () => {
-      try {
-        const { iceServers } = await consultationApi.getIceConfig()
-        if (cancelled) return
+    // Only initialize WebRTC when appointmentId exists, socket is connected, and user is available
+    if (!currentAppointmentId || !isConnected() || !user) {
+      return
+    }
 
-        webrtcRef.current = new WebRtcClient({
-          iceServers,
-          onLocalStream: (stream) => {
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = stream
-            }
-          },
-          onRemoteStream: (stream) => {
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = stream
-            }
-          },
-          onConnectionStateChange: (state) => {
-            if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-              setInCall(false)
-            }
-          },
-        })
-      } catch (e) {
-        // Fall back to STUN-only defaults inside WebRtcClient
-        if (cancelled) return
-        webrtcRef.current = new WebRtcClient({
-          onLocalStream: (stream) => {
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = stream
-            }
-          },
-          onRemoteStream: (stream) => {
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = stream
-            }
-          },
-          onConnectionStateChange: (state) => {
-            if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-              setInCall(false)
-            }
-          },
-        })
-      }
-    })()
+      ; (async () => {
+        try {
+          if (cancelled) return
+          await initializeWebRTC()
+        } catch (error) {
+          console.error('Failed to initialize WebRTC:', error)
+          setCallStatus('error')
+          setErrorMessage('Failed to initialize video connection. Please refresh the page.')
+        }
+      })()
 
     return () => {
       cancelled = true
       webrtcRef.current?.stop()
     }
-  }, [])
+  }, [currentAppointmentId, isConnected, user])
 
-  // We use appointmentId as the consultation room key (server maps it to a room name).
-  const currentAppointmentId = appointmentId
+  // Keep ref in sync so WebRTC callbacks always have the latest value
+  useEffect(() => {
+    appointmentIdRef.current = appointmentId
+  }, [appointmentId])
 
-  // Load consultation data
+  // Load consultation data and enumerate devices
   useEffect(() => {
     if (!currentAppointmentId) return
     const loadConsultation = async () => {
@@ -133,6 +143,8 @@ const ConsultationPage: React.FC = () => {
       }
     }
     loadConsultation()
+    // Get available media devices
+    getAvailableDevices()
   }, [currentAppointmentId, dispatch])
 
   // Sync notes when currentConsultation changes
@@ -177,55 +189,212 @@ const ConsultationPage: React.FC = () => {
     }
   }, [])
 
+  // Call duration tracking
+  useEffect(() => {
+    if (callStatus === 'connected' && callStartTime) {
+      const interval = setInterval(() => {
+        setCallDuration(dayjs().diff(callStartTime, 'second'))
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [callStatus, callStartTime])
+
+  // Show waiting message if connecting for too long (after call is initiated)
+  useEffect(() => {
+    if (callStatus === 'connecting') {
+      const timeout = setTimeout(() => {
+        const otherParticipant = isDoctor ? 'patient' : 'doctor'
+        setErrorMessage(`${otherParticipant} hasn't answered yet. They may not be on the page or have their video disabled.`)
+      }, 45000) // 45 seconds - give more time
+
+      return () => clearTimeout(timeout)
+    }
+  }, [callStatus, isDoctor])
+
+  // Room joining with connection checking and timeout
   useEffect(() => {
     if (!currentAppointmentId) return
-    emit('consultation:join', { appointmentId: currentAppointmentId })
+
+    const joinRoom = async () => {
+      console.log('Attempting to join consultation room for appointment:', currentAppointmentId)
+
+      // Wait for socket connection
+      let attempts = 0
+      while (!isConnected() && attempts < 50) { // Wait up to 5 seconds
+        console.log(`Waiting for socket connection... attempt ${attempts + 1}/50`)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        attempts++
+      }
+
+      if (!isConnected()) {
+        console.error('Socket not connected after 5 seconds, cannot join consultation room')
+        setCallStatus('error')
+        setErrorMessage('Network connection lost. Please check your internet connection and refresh the page.')
+        return
+      }
+
+      console.log('Socket connected, joining consultation room:', currentAppointmentId)
+      emit('consultation:join', { appointmentId: currentAppointmentId })
+
+      // Set timeout for room joining — use the ref (not state) to avoid stale closures
+      const joinTimeout = setTimeout(() => {
+        if (!hasJoinedRoomRef.current) {
+          console.error('Room joining timeout')
+          setCallStatus('error')
+          setErrorMessage('Failed to connect to consultation room. Please try refreshing the page.')
+        }
+      }, 10000) // 10 second timeout
+
+      return () => clearTimeout(joinTimeout)
+    }
+
+    joinRoom()
 
     return () => {
-      emit('consultation:leave', { appointmentId: currentAppointmentId })
+      if (isConnected()) {
+        emit('consultation:leave', { appointmentId: currentAppointmentId })
+      }
+      hasJoinedRoomRef.current = false
     }
-  }, [emit, currentAppointmentId])
+  }, [emit, currentAppointmentId, isConnected])
 
-  useEffect(() => {
-    if (!webrtcRef.current) return
-    // Wire ICE candidate callback to Socket.IO
-    webrtcRef.current.onIceCandidate = (candidate) => {
-      if (!currentAppointmentId) return
-      emit('consultation:iceCandidate', { appointmentId: currentAppointmentId, candidate })
-    }
-  }, [emit, currentAppointmentId])
 
   const handleStartCall = async () => {
-    if (!webrtcRef.current) return
+    if (isCreatingOfferRef.current) return
+    isCreatingOfferRef.current = true
     try {
+      setCallStatus('connecting')
+      setErrorMessage(null) // Clear any previous errors
       console.log('Starting WebRTC call...')
+
+      // If peer was closed (e.g. after ending a previous call), fully reinitialize
+      if (!webrtcRef.current || !webrtcRef.current.getPeer()) {
+        console.log('Reinitializing WebRTC client for new call...')
+        await webrtcRef.current?.stop()
+        await initializeWebRTC()
+      }
+
+      if (!webrtcRef.current) return
+
       const offer = await webrtcRef.current.createOffer()
+      setAudioOnly(!webrtcRef.current.isVideoEnabled())
       console.log('WebRTC offer created:', offer)
       if (!currentAppointmentId) return
       emit('consultation:offer', { appointmentId: currentAppointmentId, offer })
-      setInCall(true)
+      // Note: setInCall(true) is now handled in onConnectionStateChange when 'connected'
       console.log('Call started successfully')
     } catch (error: any) {
       console.error('Failed to start call:', error)
-      alert(`Failed to start call: ${error.message}`)
+      setCallStatus('error')
+      setErrorMessage(error.message || 'Failed to start call')
+    } finally {
+      isCreatingOfferRef.current = false
+    }
+  }
+
+  const initializeWebRTC = async (deviceConstraints?: { videoDeviceId?: string, audioDeviceId?: string }) => {
+    if (isInitializingWebRTCRef.current) return
+    try {
+      isInitializingWebRTCRef.current = true
+
+      const { iceServers } = await consultationApi.getIceConfig()
+
+    webrtcRef.current = new WebRtcClient({
+      iceServers,
+      deviceConstraints,
+      onLocalStream: (stream) => {
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream
+        }
+      },
+      onRemoteStream: (stream) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream
+        }
+      },
+      onConnectionStateChange: (state) => {
+        if (state === 'connected') {
+          setInCall(true)
+          setCallStatus('connected')
+          setCallStartTime(new Date())
+        } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+          setInCall(false)
+          setCallStatus('ended')
+          setCallStartTime(null)
+        }
+      },
+      onIceConnectionStateChange: (state) => {
+        // Provide finer-grained feedback during connection
+        if (state === 'checking') {
+          setCallStatus('connecting')
+        }
+      },
+      onIceCandidate: (candidate) => {
+        // Use ref to avoid stale closure — appointmentId may not be set at init time
+        const aptId = appointmentIdRef.current
+        if (!aptId) return
+        emit('consultation:iceCandidate', { appointmentId: aptId, candidate })
+      },
+    })
+
+    // Note: local media is started lazily inside createOffer() / handleRemoteOffer()
+    // so we do NOT call startLocalMedia() here. This avoids grabbing the camera before
+    // the call actually starts, which causes NotReadableError on same-PC multi-browser scenarios.
+    } finally {
+      isInitializingWebRTCRef.current = false
+    }
+  }
+
+  const handleRetryMediaAccess = async () => {
+    try {
+      setCallStatus('idle')
+      setErrorMessage(null)
+      // Reinitialize WebRTC client with selected devices
+      const deviceConstraints = selectedCamera || selectedMicrophone ? {
+        videoDeviceId: selectedCamera || undefined,
+        audioDeviceId: selectedMicrophone || undefined
+      } : undefined
+      await initializeWebRTC(deviceConstraints)
+      setCallStatus('ready')
+    } catch (error: any) {
+      setCallStatus('error')
+      setErrorMessage(error.message || 'Failed to reinitialize media access')
     }
   }
 
   const handleEndCall = async () => {
     await webrtcRef.current?.stop()
     setInCall(false)
+    setCallStatus('ended')
+    setCallStartTime(null)
+    if (currentAppointmentId) {
+      emit('consultation:end', { appointmentId: currentAppointmentId })
+    }
   }
 
   useSocketEvent<{ appointmentId: string; offer: RTCSessionDescriptionInit }>('consultation:offer', async (payload) => {
-    if (!webrtcRef.current || !payload?.offer) return
+    if (!payload?.offer) return
     if (currentAppointmentId && payload?.appointmentId && payload.appointmentId !== currentAppointmentId) return
     try {
+      setCallStatus('connecting')
+
+      // If the receiver's peer was closed from a previous call, reinitialize
+      if (!webrtcRef.current || !webrtcRef.current.getPeer()) {
+        console.log('Reinitializing WebRTC client to receive incoming call...')
+        await webrtcRef.current?.stop()
+        await initializeWebRTC()
+      }
+      if (!webrtcRef.current) return
+
       const answer = await webrtcRef.current.handleRemoteOffer(payload.offer)
+      setAudioOnly(!webrtcRef.current.isVideoEnabled())
       if (!currentAppointmentId) return
       emit('consultation:answer', { appointmentId: currentAppointmentId, answer })
-      setInCall(true)
+      // Note: setInCall(true) is now handled in onConnectionStateChange when 'connected'
     } catch (error) {
       console.error('Failed to handle remote offer', error)
+      setCallStatus('error')
+      setErrorMessage((error as Error).message || 'Failed to handle incoming call')
     }
   })
 
@@ -239,6 +408,15 @@ const ConsultationPage: React.FC = () => {
     }
   })
 
+  useSocketEvent<{ appointmentId: string; fromUserId: string }>('consultation:end', async (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      webrtcRef.current?.stop()
+      setInCall(false)
+      setCallStatus('ended')
+      setCallStartTime(null)
+    }
+  })
+
   useSocketEvent<{ appointmentId: string; candidate: RTCIceCandidateInit }>('consultation:iceCandidate', async (payload) => {
     if (!webrtcRef.current || !payload?.candidate) return
     if (currentAppointmentId && payload?.appointmentId && payload.appointmentId !== currentAppointmentId) return
@@ -246,6 +424,84 @@ const ConsultationPage: React.FC = () => {
       await webrtcRef.current.addIceCandidate(payload.candidate)
     } catch (error) {
       console.error('Failed to add ICE candidate', error)
+    }
+  })
+
+  // Socket event listeners for room and participant feedback
+  useSocketEvent<{ appointmentId: string; roomName: string; participantCount?: number }>('consultation:joined', (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      console.log('Successfully joined consultation room:', payload.roomName)
+      hasJoinedRoomRef.current = true
+      setCallStatus('ready')
+      setErrorMessage(null) // Clear any previous errors
+
+      // If doctor joins second and patient is waiting, auto-initiate offer immediately
+      if (isDoctor && payload.participantCount && payload.participantCount > 1 && !inCall) {
+        handleStartCall()
+      }
+    }
+  })
+
+  useSocketEvent<{ appointmentId: string; message: string }>('consultation:error', (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      console.error('Consultation room error:', payload.message)
+      setCallStatus('error')
+      setErrorMessage(payload.message || 'Failed to join consultation room. Please refresh the page.')
+    }
+  })
+
+  useSocketEvent<{ appointmentId: string; userId: string; socketId: string }>('consultation:participant_joined', async (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      console.log('Other participant joined the consultation room:', payload.userId)
+
+      // Only doctors auto-initiate offers to prevent glare (both peers creating offers simultaneously)
+      // Use hasJoinedRoomRef for synchronous check instead of async React state
+      if (isDoctor && webrtcRef.current && hasJoinedRoomRef.current && !inCall) {
+        if (isCreatingOfferRef.current) return
+        isCreatingOfferRef.current = true
+        try {
+          setCallStatus('connecting')
+          setErrorMessage(null)
+          const offer = await webrtcRef.current.createOffer()
+          if (!currentAppointmentId) return
+          emit('consultation:offer', { appointmentId: currentAppointmentId, offer })
+          console.log('Auto-initiated offer to joining participant')
+        } catch (error: any) {
+          console.error('Failed to auto-initiate call on participant join:', error)
+          setCallStatus('ready')
+          setErrorMessage(error.message || 'Failed to start call automatically. Please click Start Call.')
+        } finally {
+          isCreatingOfferRef.current = false
+        }
+      }
+    }
+  })
+
+  useSocketEvent<{ appointmentId: string; fromUserId: string }>('consultation:screenShareStarted', (payload) => {
+    if (payload?.appointmentId === currentAppointmentId) {
+      setRemoteScreenSharing(true)
+      // Force the video element to re-bind to the stream so it picks up the
+      // replaced track. Setting srcObject to the same object reference is a
+      // no-op in browsers, so we must null it first.
+      const remoteStream = webrtcRef.current?.getRemoteStream()
+      if (remoteStream && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null
+        remoteVideoRef.current.srcObject = remoteStream
+        remoteVideoRef.current.play().catch(() => {})
+      }
+    }
+  })
+
+  useSocketEvent<{ appointmentId: string; fromUserId: string }>('consultation:screenShareStopped', (payload) => {
+    if (payload?.appointmentId === currentAppointmentId) {
+      setRemoteScreenSharing(false)
+      // Force re-bind so the restored camera track is rendered
+      const remoteStream = webrtcRef.current?.getRemoteStream()
+      if (remoteStream && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null
+        remoteVideoRef.current.srcObject = remoteStream
+        remoteVideoRef.current.play().catch(() => {})
+      }
     }
   })
 
@@ -269,6 +525,197 @@ const ConsultationPage: React.FC = () => {
     }
   }
 
+  // Helper functions
+  const formatDuration = (seconds: number) => {
+    const duration = dayjs.duration(seconds, 'seconds')
+    const hours = duration.hours()
+    const minutes = duration.minutes()
+    const secs = duration.seconds()
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const getStatusMessage = () => {
+    switch (callStatus) {
+      case 'idle':
+        return 'Connecting to consultation room...'
+      case 'ready':
+        const otherParticipant = isDoctor ? 'patient' : 'doctor'
+        return `Ready. Waiting for ${otherParticipant} to join the page.`
+      case 'connecting':
+        return 'Establishing video connection...'
+      case 'connected':
+        const connectionType = useScreenShare ? 'Screen Sharing' : 'Video Call'
+        return `${connectionType} Active - Duration: ${formatDuration(callDuration)}`
+      case 'ended':
+        return 'Call ended'
+      case 'error':
+        return errorMessage || 'Connection error'
+      default:
+        return 'Unknown status'
+    }
+  }
+
+  const showStartCallButton = callStatus === 'ready' || callStatus === 'ended'
+  const showEndCallButton = callStatus === 'connected'
+
+  // Get available media devices
+  const getAvailableDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const cameras = devices.filter(device => device.kind === 'videoinput')
+      const microphones = devices.filter(device => device.kind === 'audioinput')
+      setAvailableDevices({ cameras, microphones })
+      return { cameras, microphones }
+    } catch (error) {
+      console.error('Failed to enumerate devices:', error)
+      return { cameras: [], microphones: [] }
+    }
+  }
+
+  // Resolve the video RTCRtpSender from the peer connection.
+  // Uses transceivers first because receiver.track.kind is derived from SDP and
+  // never goes null, making it reliable even when the sender's current track is null
+  // (e.g. audio-only fallback, or after a prior replaceTrack call).
+  const getVideoSender = (): RTCRtpSender | null => {
+    const peer = webrtcRef.current?.getPeer()
+    if (!peer) return null
+    const transceiver = peer
+      .getTransceivers()
+      .find(t => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+    return transceiver?.sender ?? peer.getSenders().find(s => s.track?.kind === 'video') ?? null
+  }
+
+  // Start screen sharing instead of camera (mid-call track replacement)
+  const startScreenShare = async () => {
+    if (callStatus !== 'connected' || isCreatingOfferRef.current) return
+    try {
+      setErrorMessage(null)
+
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      })
+
+      screenShareStreamRef.current = screenStream
+
+      const videoTrack = screenStream.getVideoTracks()[0]
+
+      // Auto-revert when user clicks the browser's native "Stop sharing" button
+      videoTrack.onended = () => {
+        stopScreenShare()
+      }
+
+      const sender = getVideoSender()
+      if (!sender) {
+        setErrorMessage('No video channel available for screen sharing.')
+        screenStream.getTracks().forEach(t => t.stop())
+        screenShareStreamRef.current = null
+        return
+      }
+
+      await sender.replaceTrack(videoTrack)
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = screenStream
+      }
+
+      setUseScreenShare(true)
+      emit('consultation:screenShareStarted', { appointmentId })
+    } catch (error: any) {
+      console.error('Screen sharing failed:', error)
+      setErrorMessage('Screen sharing cancelled or failed.')
+    }
+  }
+
+  // Stop screen sharing and revert to camera
+  const stopScreenShare = async () => {
+    try {
+      if (screenShareStreamRef.current) {
+        screenShareStreamRef.current.getTracks().forEach(track => track.stop())
+        screenShareStreamRef.current = null
+      }
+
+      const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      const cameraVideoTrack = cameraStream.getVideoTracks()[0]
+
+      const sender = getVideoSender()
+      if (sender) {
+        await sender.replaceTrack(cameraVideoTrack)
+      }
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = cameraStream
+      }
+
+      setUseScreenShare(false)
+      emit('consultation:screenShareStopped', { appointmentId })
+    } catch (error: any) {
+      console.error('Failed to stop screen share:', error)
+      setErrorMessage('Failed to revert to camera after screen sharing.')
+    }
+  }
+
+  // Start a new call using a screen-share stream instead of the camera.
+  // Used when the camera is unavailable (e.g. NotReadableError) before a call has been established.
+  const startCallWithScreenShare = async () => {
+    if (isCreatingOfferRef.current) return
+    isCreatingOfferRef.current = true
+    try {
+      setCallStatus('connecting')
+      setErrorMessage(null)
+
+      if (!webrtcRef.current || !webrtcRef.current.getPeer()) {
+        await initializeWebRTC()
+      }
+
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+
+      if (!webrtcRef.current) {
+        screenStream.getTracks().forEach((track) => track.stop())
+        setCallStatus('error')
+        setErrorMessage('Failed to initialize video connection for screen sharing.')
+        return
+      }
+
+      webrtcRef.current.setLocalStream(screenStream)
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = screenStream
+      }
+      setUseScreenShare(true)
+      setAudioOnly(false)
+
+      if (!currentAppointmentId) return
+      const offer = await webrtcRef.current.createOffer()
+      emit('consultation:offer', { appointmentId: currentAppointmentId, offer })
+      setCallStatus('connecting')
+    } catch (error: any) {
+      console.error('Screen share call failed:', error)
+      setCallStatus('error')
+      setErrorMessage(error.message || 'Screen sharing failed')
+    } finally {
+      isCreatingOfferRef.current = false
+    }
+  }
+
+  // Check if camera/microphone permissions are available
+  const checkMediaPermissions = async () => {
+    try {
+      const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
+      const micResult = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+      return {
+        camera: result.state,
+        microphone: micResult.state
+      }
+    } catch (error) {
+      // Permissions API not supported
+      return { camera: 'unknown', microphone: 'unknown' }
+    }
+  }
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
@@ -278,6 +725,86 @@ const ConsultationPage: React.FC = () => {
         Secure video consultation using WebRTC. Both participants should be on this page for a call
         to connect.
       </Typography>
+
+      {/* Status Banner */}
+      <Paper
+        sx={{
+          p: 2,
+          mb: 2,
+          backgroundColor: callStatus === 'error' ? '#ffebee' : callStatus === 'connected' ? '#e8f5e8' : '#f5f5f5',
+          border: callStatus === 'connected' ? '1px solid #4caf50' : 'none'
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={2}>
+          {callStatus === 'connecting' && <CircularProgress size={20} />}
+          {callStatus === 'connected' && <CheckCircleIcon color="success" />}
+          {callStatus === 'idle' && <CircularProgress size={20} />}
+          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+            {getStatusMessage()}
+          </Typography>
+          {callStatus === 'ready' && (
+            <Typography variant="body2" color="text.secondary">
+              Both participants should be on this page for the call to connect.
+            </Typography>
+          )}
+          {callStatus === 'ready' && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Make sure no other applications are using your camera/microphone.
+            </Typography>
+          )}
+          {audioOnly && (
+            <Chip label="Audio Only – Camera Unavailable" color="warning" size="small" />
+          )}
+          {!isConnected() && callStatus !== 'error' && (
+            <Typography variant="body2" color="warning.main" sx={{ fontStyle: 'italic' }}>
+              Reconnecting to server...
+            </Typography>
+          )}
+          {callStatus === 'error' && (
+            <Box sx={{ mt: 1 }}>
+              {errorMessage?.includes('busy') || errorMessage?.includes('already in use') ? (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Camera/microphone busy. Choose different devices or share screen!
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      onClick={() => setShowDeviceDialog(true)}
+                      disabled={availableDevices.cameras.length === 0 && availableDevices.microphones.length === 0}
+                    >
+                      Select Devices
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="secondary"
+                      onClick={inCall ? startScreenShare : startCallWithScreenShare}
+                    >
+                      Share Screen
+                    </Button>
+                  </Stack>
+                </>
+              ) : (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {errorMessage}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => window.location.reload()}
+                  >
+                    Refresh Page
+                  </Button>
+                </>
+              )}
+            </Box>
+          )}
+        </Stack>
+      </Paper>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 8 }}>
@@ -296,6 +823,15 @@ const ConsultationPage: React.FC = () => {
               playsInline
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
+            {remoteScreenSharing && (
+              <Chip
+                icon={<ScreenShareIcon />}
+                label="Screen Sharing"
+                size="small"
+                color="secondary"
+                sx={{ position: 'absolute', top: 8, left: 8 }}
+              />
+            )}
             <Box
               sx={{
                 position: 'absolute',
@@ -339,7 +875,7 @@ const ConsultationPage: React.FC = () => {
               </Box>
 
               <Stack direction="row" spacing={2} justifyContent="center" sx={{ my: 2 }}>
-                {!inCall ? (
+                {showStartCallButton ? (
                   <Button
                     variant="contained"
                     color="success"
@@ -347,9 +883,13 @@ const ConsultationPage: React.FC = () => {
                     onClick={handleStartCall}
                     disabled={!socket}
                   >
-                    Start Call
+                    {callStatus === 'ended' ? (
+                      'Start New Call'
+                    ) : (
+                      'Start Call'
+                    )}
                   </Button>
-                ) : (
+                ) : showEndCallButton ? (
                   <Button
                     variant="contained"
                     color="error"
@@ -358,23 +898,41 @@ const ConsultationPage: React.FC = () => {
                   >
                     End Call
                   </Button>
-                )}
+                ) : null}
               </Stack>
 
               <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 2 }}>
                 <IconButton
                   color={micEnabled ? 'primary' : 'default'}
                   onClick={toggleMic}
-                  disabled={!inCall}
+                  disabled={callStatus !== 'connected'}
+                  title="Toggle Microphone"
                 >
                   {micEnabled ? <MicIcon /> : <MicOffIcon />}
                 </IconButton>
                 <IconButton
                   color={cameraEnabled ? 'primary' : 'default'}
                   onClick={toggleCamera}
-                  disabled={!inCall}
+                  disabled={callStatus !== 'connected' || useScreenShare}
+                  title={useScreenShare ? "Screen sharing active" : "Toggle Camera"}
                 >
                   {cameraEnabled ? <VideocamIcon /> : <VideocamOffIcon />}
+                </IconButton>
+                <IconButton
+                  color={useScreenShare ? 'secondary' : 'default'}
+                  onClick={useScreenShare ? stopScreenShare : startScreenShare}
+                  disabled={callStatus !== 'connected'}
+                  title={useScreenShare ? 'Stop Screen Share' : 'Share Screen'}
+                >
+                  {useScreenShare ? <StopScreenShareIcon /> : <ScreenShareIcon />}
+                </IconButton>
+                <IconButton
+                  color="default"
+                  onClick={() => setShowDeviceDialog(true)}
+                  disabled={callStatus === 'connecting'}
+                  title="Select Camera/Microphone"
+                >
+                  <SettingsIcon />
                 </IconButton>
               </Stack>
             </Box>
@@ -462,6 +1020,72 @@ const ConsultationPage: React.FC = () => {
           }}
         />
       )}
+
+      {/* Snackbar for error messages */}
+      <Snackbar
+        open={!!errorMessage}
+        autoHideDuration={6000}
+        onClose={() => setErrorMessage(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setErrorMessage(null)} severity="error" sx={{ width: '100%' }}>
+          {errorMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Device Selection Dialog */}
+      <MuiDialog open={showDeviceDialog} onClose={() => setShowDeviceDialog(false)} maxWidth="sm" fullWidth>
+        <MuiDialogTitle>Select Camera & Microphone</MuiDialogTitle>
+        <MuiDialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Camera</InputLabel>
+              <Select
+                value={selectedCamera}
+                onChange={(e) => setSelectedCamera(e.target.value)}
+                label="Camera"
+              >
+                {availableDevices.cameras.map((camera) => (
+                  <MenuItem key={camera.deviceId} value={camera.deviceId}>
+                    {camera.label || `Camera ${camera.deviceId.slice(0, 8)}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Microphone</InputLabel>
+              <Select
+                value={selectedMicrophone}
+                onChange={(e) => setSelectedMicrophone(e.target.value)}
+                label="Microphone"
+              >
+                {availableDevices.microphones.map((mic) => (
+                  <MenuItem key={mic.deviceId} value={mic.deviceId}>
+                    {mic.label || `Microphone ${mic.deviceId.slice(0, 8)}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Typography variant="body2" color="text.secondary">
+              If your preferred camera/microphone is busy, try selecting a different device.
+            </Typography>
+          </Stack>
+        </MuiDialogContent>
+        <MuiDialogActions>
+          <Button onClick={() => setShowDeviceDialog(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setShowDeviceDialog(false)
+              handleRetryMediaAccess()
+            }}
+            variant="contained"
+          >
+            Use Selected Devices
+          </Button>
+        </MuiDialogActions>
+      </MuiDialog>
     </Container>
   )
 }

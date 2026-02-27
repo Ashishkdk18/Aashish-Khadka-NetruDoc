@@ -14,7 +14,13 @@ export const registerSocketHandlers = (io) => {
   io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // Join user-specific room and store userId on socket context
+    // Join user-specific room (socket.userId set by socketAuth middleware)
+    if (socket.userId) {
+      socket.join(socket.userId);
+      console.log(`User ${socket.userId} joined personal room`);
+    }
+
+    // Join user-specific room and store userId on socket context (backward compatibility)
     socket.on('join', (userId) => {
       if (!userId) return;
       socket.join(userId);

@@ -259,20 +259,25 @@ const AppointmentDetailsPage: React.FC = () => {
             />
           )}
           {appointmentId && (
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={<VideocamIcon />}
-              onClick={handleStartOrJoinConsultation}
-              disabled={
-                !isConfirmed ||
-                (isDoctor && !isAssignedDoctor) ||
-                (!isDoctor && consultationStatus !== 'active')
-              }
-            >
-              {isDoctor ? 'Start Call' : 'Join Call'}
-            </Button>
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+                Both participants must be on the consultation page for the video call to connect.
+              </Typography>
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                startIcon={<VideocamIcon />}
+                onClick={handleStartOrJoinConsultation}
+                disabled={
+                  !isConfirmed ||
+                  (isDoctor && !isAssignedDoctor) ||
+                  (!isDoctor && consultationStatus !== 'active')
+                }
+              >
+                {isDoctor ? 'Start Video Call' : 'Join Video Call'}
+              </Button>
+            </>
           )}
           {doctorId && userId && (
             <Button

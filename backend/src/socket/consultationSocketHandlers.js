@@ -54,7 +54,15 @@ export const registerConsultationHandlers = (io, socket) => {
       const roomName = getConsultationRoomName(appointmentId);
       socket.join(roomName);
 
-      socket.emit('consultation:joined', { appointmentId, roomName });
+      const roomSockets = await io.in(roomName).fetchSockets()
+      socket.emit('consultation:joined', { appointmentId, roomName, participantCount: roomSockets.length });
+
+      // Notify other participants in the room that someone joined
+      socket.to(roomName).emit('consultation:participant_joined', {
+        appointmentId,
+        userId,
+        socketId: socket.id,
+      });
     } catch (error) {
       console.error('Error in consultation:join:', error);
       socket.emit('consultation:error', {
@@ -69,6 +77,20 @@ export const registerConsultationHandlers = (io, socket) => {
     const roomName = getConsultationRoomName(appointmentId);
     socket.leave(roomName);
     socket.emit('consultation:left', { appointmentId, roomName });
+  });
+
+  socket.on('consultation:end', async ({ appointmentId }) => {
+    try {
+      const userId = socket.data?.userId;
+      if (!userId) return;
+
+      if (!appointmentId || !mongoose.Types.ObjectId.isValid(appointmentId)) return;
+
+      const roomName = getConsultationRoomName(appointmentId);
+      socket.to(roomName).emit('consultation:end', { appointmentId, fromUserId: userId });
+    } catch (error) {
+      console.error('Error in consultation:end:', error);
+    }
   });
 
   /**
@@ -96,23 +118,44 @@ export const registerConsultationHandlers = (io, socket) => {
     socket.to(roomName).emit('consultation:iceCandidate', { appointmentId, candidate, fromUserId: userId });
   });
 
+  socket.on('consultation:screenShareStarted', ({ appointmentId }) => {
+    if (!appointmentId) return;
+    const userId = socket.data?.userId;
+    const roomName = getConsultationRoomName(appointmentId);
+    socket.to(roomName).emit('consultation:screenShareStarted', { appointmentId, fromUserId: userId });
+  });
+
+  socket.on('consultation:screenShareStopped', ({ appointmentId }) => {
+    if (!appointmentId) return;
+    const userId = socket.data?.userId;
+    const roomName = getConsultationRoomName(appointmentId);
+    socket.to(roomName).emit('consultation:screenShareStopped', { appointmentId, fromUserId: userId });
+  });
+
   /**
    * Backward-compatible legacy event names (optional).
    * These map the old target-based events to the new appointment room flow.
+   * Forward to the room (not back to self) so the other participant receives them.
    */
   socket.on('videoOffer', (data) => {
     if (!data || !data.appointmentId || !data.offer) return;
-    socket.emit('consultation:offer', { appointmentId: data.appointmentId, offer: data.offer });
+    const roomName = getConsultationRoomName(data.appointmentId);
+    const userId = socket.data?.userId;
+    socket.to(roomName).emit('consultation:offer', { appointmentId: data.appointmentId, offer: data.offer, fromUserId: userId });
   });
 
   socket.on('videoAnswer', (data) => {
     if (!data || !data.appointmentId || !data.answer) return;
-    socket.emit('consultation:answer', { appointmentId: data.appointmentId, answer: data.answer });
+    const roomName = getConsultationRoomName(data.appointmentId);
+    const userId = socket.data?.userId;
+    socket.to(roomName).emit('consultation:answer', { appointmentId: data.appointmentId, answer: data.answer, fromUserId: userId });
   });
 
   socket.on('iceCandidate', (data) => {
     if (!data || !data.appointmentId || !data.candidate) return;
-    socket.emit('consultation:iceCandidate', { appointmentId: data.appointmentId, candidate: data.candidate });
+    const roomName = getConsultationRoomName(data.appointmentId);
+    const userId = socket.data?.userId;
+    socket.to(roomName).emit('consultation:iceCandidate', { appointmentId: data.appointmentId, candidate: data.candidate, fromUserId: userId });
   });
 };
 

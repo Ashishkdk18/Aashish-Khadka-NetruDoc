@@ -30,7 +30,7 @@ class SocketManager {
       withCredentials: true,
       auth: token
         ? {
-            token: `Bearer ${token}`,
+            token: token,
           }
         : undefined,
     })
