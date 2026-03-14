@@ -226,7 +226,7 @@ const DoctorProfilePage: React.FC = () => {
                   </div>
                   {doctor.hospital && (
                     <div className="text-sm text-primary font-medium">
-                      {doctor.hospital}
+                      {typeof doctor.hospital === 'object' ? (doctor.hospital as any)?.name : doctor.hospital}
                     </div>
                   )}
                 </div>

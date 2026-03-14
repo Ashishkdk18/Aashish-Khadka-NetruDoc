@@ -237,7 +237,7 @@ const ProfilePage: React.FC = () => {
                     {profileUser.hospital && (
                       <div>
                         <div className="text-sm font-sans font-medium uppercase tracking-widest text-secondary mb-2">Hospital/Clinic</div>
-                        <div className="text-lg text-primary">{profileUser.hospital}</div>
+                        <div className="text-lg text-primary">{typeof profileUser.hospital === 'object' ? (profileUser.hospital as any)?.name : profileUser.hospital}</div>
                       </div>
                     )}
                     {profileUser.consultationFee !== undefined && (

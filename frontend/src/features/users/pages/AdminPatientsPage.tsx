@@ -30,7 +30,7 @@ const AdminPatientsPage: React.FC = () => {
 
       const response = await userApi.getPatients({
         page,
-        limit: 10,
+        limit: 5,
         search: searchTerm || undefined
       }) as any
 
@@ -163,16 +163,14 @@ const AdminPatientsPage: React.FC = () => {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                                patient.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
+                              <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${patient.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                }`}>
                                 {patient.isActive ? 'Active' : 'Inactive'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                                patient.isVerified ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
+                              <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${patient.isVerified ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                }`}>
                                 {patient.isVerified ? 'Verified' : 'Not Verified'}
                               </span>
                             </td>
@@ -203,19 +201,32 @@ const AdminPatientsPage: React.FC = () => {
               {totalPages > 1 && (
                 <div className="flex justify-center mt-8">
                   <div className="flex space-x-2">
+                    <button
+                      onClick={() => setPage(Math.max(1, page - 1))}
+                      disabled={page === 1}
+                      className="px-4 py-2 rounded-lg font-medium transition-colors bg-soft-blue/30 text-primary hover:bg-soft-blue/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      &laquo; Previous
+                    </button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                       <button
                         key={pageNum}
                         onClick={() => setPage(pageNum)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                          page === pageNum
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${page === pageNum
                             ? 'bg-primary text-background'
                             : 'bg-soft-blue/30 text-primary hover:bg-soft-blue/50'
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setPage(Math.min(totalPages, page + 1))}
+                      disabled={page === totalPages}
+                      className="px-4 py-2 rounded-lg font-medium transition-colors bg-soft-blue/30 text-primary hover:bg-soft-blue/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next &raquo;
+                    </button>
                   </div>
                 </div>
               )}

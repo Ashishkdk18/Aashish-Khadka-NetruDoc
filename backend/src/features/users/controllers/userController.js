@@ -1,7 +1,9 @@
 import { UserService } from '../services/userService.js';
+import { AuditService } from '../../audit/services/auditService.js';
 import { successResponse, errorResponse, paginatedSuccessResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
 const userService = new UserService();
+const auditService = new AuditService();
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -54,6 +56,23 @@ export const updateUser = async (req, res) => {
     const user = await userService.updateUser(req.params.id, req.body);
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.USER_UPDATED, { user }));
+
+    // Admin user update audit
+    try {
+      if (req.user && req.user._id) {
+        await auditService.logAction(
+          'user',
+          user._id || req.params.id,
+          'update',
+          req.user._id.toString(),
+          req.user.role,
+          req,
+          { updatedFields: Object.keys(req.body || {}) }
+        );
+      }
+    } catch (auditError) {
+      console.error('Failed to log user update audit event:', auditError);
+    }
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {
@@ -91,8 +110,13 @@ export const getDoctors = async (req, res) => {
     const result = await userService.getDoctors({
       page: req.query.page || 1,
       limit: req.query.limit || 10,
+      sort: req.query.sort,
       specialization: req.query.specialization,
-      search: req.query.search
+      search: req.query.search,
+      hospitalId: req.query.hospitalId,
+      minExperience: req.query.minExperience,
+      maxFee: req.query.maxFee,
+      availabilityDate: req.query.availabilityDate
     });
 
     res.status(200).json(paginatedSuccessResponse(
@@ -136,6 +160,21 @@ export const activateUser = async (req, res) => {
     const user = await userService.updateUser(req.params.id, { isActive: true });
 
     res.status(200).json(successResponse('User account activated successfully', { user }));
+
+    // Audit activation
+    try {
+      await auditService.logAction(
+        'user',
+        user._id || req.params.id,
+        'update',
+        req.user._id.toString(),
+        req.user.role,
+        req,
+        { action: 'activate' }
+      );
+    } catch (auditError) {
+      console.error('Failed to log user activate audit event:', auditError);
+    }
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {
@@ -153,6 +192,21 @@ export const deactivateUser = async (req, res) => {
     const user = await userService.updateUser(req.params.id, { isActive: false });
 
     res.status(200).json(successResponse('User account deactivated successfully', { user }));
+
+    // Audit deactivation
+    try {
+      await auditService.logAction(
+        'user',
+        user._id || req.params.id,
+        'update',
+        req.user._id.toString(),
+        req.user.role,
+        req,
+        { action: 'deactivate' }
+      );
+    } catch (auditError) {
+      console.error('Failed to log user deactivate audit event:', auditError);
+    }
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {

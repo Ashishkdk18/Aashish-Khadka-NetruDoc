@@ -58,23 +58,63 @@ export class UserService extends BaseService {
   }
 
   /**
-   * Get all doctors
-   * @param {Object} pagination - Pagination options
+   * Get all doctors with advanced filters
+   * @param {Object} filtersAndPagination - Filter + pagination options
    * @returns {Promise<Object>}
    */
-  async getDoctors(pagination = {}) {
-    const { search, specialization, ...paginationOptions } = pagination;
+  async getDoctors(filtersAndPagination = {}) {
+    const {
+      search,
+      specialization,
+      hospitalId,
+      minExperience,
+      maxFee,
+      availabilityDate,
+      ...paginationOptions
+    } = filtersAndPagination;
 
     const query = { role: 'doctor', isActive: true };
+
     if (specialization) {
       query.specialization = specialization;
+    }
+
+    if (hospitalId) {
+      query.hospital = hospitalId;
+    }
+
+    if (minExperience !== undefined) {
+      const min = Number(minExperience);
+      if (!Number.isNaN(min)) {
+        query.experience = { ...(query.experience || {}), $gte: min };
+      }
+    }
+
+    if (maxFee !== undefined) {
+      const max = Number(maxFee);
+      if (!Number.isNaN(max)) {
+        query.consultationFee = { ...(query.consultationFee || {}), $lte: max };
+      }
+    }
+
+    if (availabilityDate) {
+      const date = new Date(availabilityDate);
+      if (!Number.isNaN(date.getTime())) {
+        const dayIndex = date.getDay(); // 0 (Sun) - 6 (Sat)
+        const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayKey = dayMap[dayIndex];
+        if (dayKey) {
+          query[`availability.${dayKey}.available`] = true;
+        }
+      }
     }
 
     const options = {
       page: paginationOptions.page || 1,
       limit: paginationOptions.limit || 10,
       sort: paginationOptions.sort || '-rating',
-      search: search
+      search,
+      populate: [{ path: 'hospital', select: 'name address.city' }]
     };
 
     return this.repository.findAll(query, options);
@@ -110,6 +150,11 @@ export class UserService extends BaseService {
     const exists = await this.repository.exists({ email: userData.email });
     if (exists) {
       throw new Error('User with this email already exists');
+    }
+
+    // Explicitly delete hospital if it is undefined to prevent mongoose validation errors
+    if (userData.hospital === undefined) {
+        delete userData.hospital;
     }
 
     return this.create(userData);

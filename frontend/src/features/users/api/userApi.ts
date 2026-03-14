@@ -70,19 +70,29 @@ class UserApi {
   }
 
   /**
-   * Get all doctors
+   * Get all doctors (with filters and pagination)
    */
   async getDoctors(params?: {
     page?: number
     limit?: number
     specialization?: string
     search?: string
+    sort?: string
+    hospitalId?: string
+    minExperience?: number
+    maxFee?: number
+    availabilityDate?: string
   }): Promise<PaginatedApiResponse<User>> {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.specialization) queryParams.append('specialization', params.specialization)
     if (params?.search) queryParams.append('search', params.search)
+    if (params?.sort) queryParams.append('sort', params.sort)
+    if (params?.hospitalId) queryParams.append('hospitalId', params.hospitalId)
+    if (params?.minExperience != null) queryParams.append('minExperience', params.minExperience.toString())
+    if (params?.maxFee != null) queryParams.append('maxFee', params.maxFee.toString())
+    if (params?.availabilityDate) queryParams.append('availabilityDate', params.availabilityDate)
 
     const queryString = queryParams.toString()
     const url = queryString ? `${this.basePath}/doctors?${queryString}` : `${this.basePath}/doctors`

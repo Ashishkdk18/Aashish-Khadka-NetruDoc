@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { RootState } from '../../../store'
 import { userApi } from '../api/userApi'
 import { User } from '../models/userModels'
+import { hospitalApi } from '../../hospitals/api/hospitalApi'
+import { Hospital } from '../../hospitals/models/hospitalModels'
 
 
 const AdminDoctorsPage: React.FC = () => {
@@ -17,6 +19,24 @@ const AdminDoctorsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDoctor, setSelectedDoctor] = useState<User | null>(null)
   const [showCredentialsModal, setShowCredentialsModal] = useState(false)
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editDoctorData, setEditDoctorData] = useState<any>(null)
+
+  useEffect(() => {
+    loadHospitals()
+  }, [])
+
+  const loadHospitals = async () => {
+    try {
+      const response = await hospitalApi.getHospitals({}, { limit: 100 }) as any
+      if (response.status === 'success') {
+        setHospitals(response.data.items || [])
+      }
+    } catch (err) {
+      console.error('Failed to load hospitals:', err)
+    }
+  }
 
   useEffect(() => {
     if (currentUser?.role !== 'admin') {
@@ -184,7 +204,9 @@ const AdminDoctorsPage: React.FC = () => {
                                 <span className="text-secondary">N/A</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-secondary">{doctor.hospital || 'N/A'}</td>
+                            <td className="px-6 py-4 text-secondary">
+                              {typeof doctor.hospital === 'object' ? (doctor.hospital as any).name : doctor.hospital || 'N/A'}
+                            </td>
                             <td className="px-6 py-4 text-secondary">
                               {doctor.experience ? `${doctor.experience} years` : 'N/A'}
                             </td>
@@ -219,6 +241,19 @@ const AdminDoctorsPage: React.FC = () => {
                                     Review Credentials
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => {
+                                    setEditDoctorData({
+                                      id: doctor.id,
+                                      name: doctor.name,
+                                      hospital: typeof doctor.hospital === 'object' ? (doctor.hospital as any)._id || (doctor.hospital as any).id : doctor.hospital
+                                    })
+                                    setShowEditModal(true)
+                                  }}
+                                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-300 text-sm font-medium rounded-full"
+                                >
+                                  Move Hospital
+                                </button>
                                 <Link
                                   to={`/admin/doctors/${doctor.id}`}
                                   className="inline-flex items-center justify-center px-4 py-2 bg-primary text-background hover:bg-secondary transition-colors duration-300 text-sm font-medium rounded-full"
@@ -297,7 +332,7 @@ const AdminDoctorsPage: React.FC = () => {
                   <p><strong>Specialization:</strong> {selectedDoctor.specialization || 'Not provided'}</p>
                   <p><strong>License Number:</strong> {selectedDoctor.licenseNumber || 'Not provided'}</p>
                   <p><strong>Experience:</strong> {selectedDoctor.experience ? `${selectedDoctor.experience} years` : 'Not provided'}</p>
-                  <p><strong>Hospital:</strong> {selectedDoctor.hospital || 'Not provided'}</p>
+                  <p><strong>Hospital:</strong> {typeof selectedDoctor.hospital === 'object' ? (selectedDoctor.hospital as any)?.name : selectedDoctor.hospital || 'Not provided'}</p>
                 </div>
               </div>
 
@@ -348,6 +383,61 @@ const AdminDoctorsPage: React.FC = () => {
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
                 Verify Doctor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Doctor Modal (Move Hospital) */}
+      {showEditModal && editDoctorData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Move Doctor to Hospital</h2>
+            <p className="mb-4 text-secondary">Change hospital for <strong>{editDoctorData.name}</strong></p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Hospital</label>
+              <select
+                value={editDoctorData.hospital || ''}
+                onChange={(e) => setEditDoctorData({ ...editDoctorData, hospital: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">None / Private Practice</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditDoctorData(null)
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await userApi.updateUser(editDoctorData.id, { hospital: editDoctorData.hospital || null }) as any
+                    if (response.status === 'success') {
+                      setShowEditModal(false)
+                      setEditDoctorData(null)
+                      loadDoctors()
+                    } else {
+                      alert(response.message || 'Failed to update doctor hospital')
+                    }
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to update doctor hospital')
+                  }
+                }}
+                className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Save Changes
               </button>
             </div>
           </div>

@@ -84,7 +84,10 @@ const userSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  hospital: String,
+  hospital: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Hospital'
+  },
   consultationFee: {
     type: Number,
     min: 0

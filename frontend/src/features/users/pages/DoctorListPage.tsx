@@ -13,6 +13,10 @@ const DoctorListPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1)
   const [specializationFilter, setSpecializationFilter] = useState<Specialization | 'all'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [minExperience, setMinExperience] = useState<number | ''>('')
+  const [maxFee, setMaxFee] = useState<number | ''>('')
+  const [availabilityDate, setAvailabilityDate] = useState('')
+  const [sort, setSort] = useState('')
 
   const specializations: Specialization[] = [
     'general-medicine',
@@ -46,7 +50,7 @@ const DoctorListPage: React.FC = () => {
 
   useEffect(() => {
     loadDoctors()
-  }, [page, specializationFilter])
+  }, [page, specializationFilter, searchTerm, minExperience, maxFee, availabilityDate, sort])
 
   const loadDoctors = async () => {
     try {
@@ -55,18 +59,20 @@ const DoctorListPage: React.FC = () => {
 
       const params: any = {
         page,
-        limit: 12 // Show 12 doctors per page in grid
+        limit: 5
       }
-
-      if (specializationFilter !== 'all') {
-        params.specialization = specializationFilter
-      }
+      if (specializationFilter !== 'all') params.specialization = specializationFilter
+      if (searchTerm.trim()) params.search = searchTerm.trim()
+      if (minExperience !== '') params.minExperience = minExperience
+      if (maxFee !== '') params.maxFee = maxFee
+      if (availabilityDate) params.availabilityDate = availabilityDate
+      if (sort) params.sort = sort
 
       const response = await userApi.getDoctors(params) as any
 
       if (response.status === 'success') {
-        setDoctors(response.data.items || [])
-        setTotalPages(response.data.pagination?.totalPages || 1)
+        setDoctors(response.data?.items ?? response.data?.data?.items ?? [])
+        setTotalPages(response.data?.pagination?.totalPages ?? 1)
       } else {
         setError(response.message || 'Failed to load doctors')
       }
@@ -77,12 +83,7 @@ const DoctorListPage: React.FC = () => {
     }
   }
 
-  const filteredDoctors = doctors.filter(doctor => {
-    if (!searchTerm) return true
-    return doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           doctor.hospital?.toLowerCase().includes(searchTerm.toLowerCase())
-  })
+  const filteredDoctors = doctors
 
   const handleBookAppointment = (doctorId: string) => {
     navigate(`/appointments/book/${doctorId}`)
@@ -142,6 +143,54 @@ const DoctorListPage: React.FC = () => {
                   {specializationLabels[spec]}
                 </option>
               ))}
+            </select>
+            {/* Min experience (years) */}
+            <input
+              type="number"
+              min={0}
+              placeholder="Min experience (yrs)"
+              value={minExperience === '' ? '' : minExperience}
+              onChange={(e) => {
+                const v = e.target.value
+                setMinExperience(v === '' ? '' : Math.max(0, parseInt(v, 10) || 0))
+                setPage(1)
+              }}
+              className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-accent bg-white w-36"
+            />
+            {/* Max consultation fee */}
+            <input
+              type="number"
+              min={0}
+              placeholder="Max fee (Rs)"
+              value={maxFee === '' ? '' : maxFee}
+              onChange={(e) => {
+                const v = e.target.value
+                setMaxFee(v === '' ? '' : Math.max(0, parseInt(v, 10) || 0))
+                setPage(1)
+              }}
+              className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-accent bg-white w-32"
+            />
+            {/* Available on date */}
+            <input
+              type="date"
+              value={availabilityDate}
+              onChange={(e) => {
+                setAvailabilityDate(e.target.value)
+                setPage(1)
+              }}
+              className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-accent bg-white"
+            />
+            {/* Sort */}
+            <select
+              value={sort}
+              onChange={(e) => { setSort(e.target.value); setPage(1) }}
+              className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-accent bg-white min-w-40"
+            >
+              <option value="">Sort by</option>
+              <option value="experience">Experience</option>
+              <option value="-consultationFee">Fee: High to Low</option>
+              <option value="consultationFee">Fee: Low to High</option>
+              <option value="name">Name A–Z</option>
             </select>
           </div>
         </div>
@@ -211,11 +260,10 @@ const DoctorListPage: React.FC = () => {
                                 {[...Array(5)].map((_, i) => (
                                   <StarIcon
                                     key={i}
-                                    className={`w-4 h-4 ${
-                                      i < Math.floor(doctor.rating!)
+                                    className={`w-4 h-4 ${i < Math.floor(doctor.rating!)
                                         ? 'text-yellow-400 fill-current'
                                         : 'text-gray-300'
-                                    }`}
+                                      }`}
                                   />
                                 ))}
                               </div>
@@ -241,7 +289,7 @@ const DoctorListPage: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <span className="text-sm text-secondary">Hospital:</span>
                           <span className="text-sm text-primary font-medium">
-                            {doctor.hospital || 'Not specified'}
+                            {typeof doctor.hospital === 'object' ? (doctor.hospital as any)?.name : doctor.hospital || 'Not specified'}
                           </span>
                         </div>
 
@@ -306,19 +354,32 @@ const DoctorListPage: React.FC = () => {
               <div className="max-w-6xl mx-auto">
                 <div className="flex justify-center">
                   <div className="flex space-x-2">
+                    <button
+                      onClick={() => setPage(Math.max(1, page - 1))}
+                      disabled={page === 1}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-200 text-primary hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      &laquo; Previous
+                    </button>
                     {[...Array(totalPages)].map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setPage(i + 1)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          page === i + 1
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${page === i + 1
                             ? 'bg-accent text-white'
                             : 'bg-white border border-gray-200 text-primary hover:border-accent hover:text-accent'
-                        }`}
+                          }`}
                       >
                         {i + 1}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setPage(Math.min(totalPages, page + 1))}
+                      disabled={page === totalPages}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-200 text-primary hover:border-accent hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next &raquo;
+                    </button>
                   </div>
                 </div>
               </div>
