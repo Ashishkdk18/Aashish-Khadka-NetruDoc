@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
 import { AppointmentService } from '../services/appointmentService.js';
+import { AuditService } from '../../audit/services/auditService.js';
 import { successResponse, errorResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
 const appointmentService = new AppointmentService();
+const auditService = new AuditService();
 
 // @desc    Get appointments
 // @route   GET /api/appointments
@@ -164,6 +166,21 @@ export const createAppointment = async (req, res) => {
     const appointment = await appointmentService.createAppointment(appointmentData);
 
     res.status(201).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_CREATED, { appointment }));
+
+    // Audit appointment creation
+    try {
+      await auditService.logAction(
+        'appointment',
+        appointment._id,
+        'create',
+        req.user._id.toString(),
+        req.user.role,
+        req,
+        { doctorId: appointment.doctorId, date: appointment.date, timeSlot: appointment.timeSlot }
+      );
+    } catch (auditError) {
+      console.error('Failed to log appointment create audit event:', auditError);
+    }
   } catch (error) {
     console.error('Error creating appointment:', error);
     if (error.message === 'Time slot is already booked' || error.message === 'Doctor is not available at the requested time') {
@@ -191,6 +208,21 @@ export const updateAppointment = async (req, res) => {
     const appointment = await appointmentService.updateAppointment(id, req.body);
 
     res.status(200).json(successResponse(RESPONSE_MESSAGES.APPOINTMENT_UPDATED, { appointment }));
+
+    // Audit appointment update
+    try {
+      await auditService.logAction(
+        'appointment',
+        appointment._id,
+        'update',
+        req.user._id.toString(),
+        req.user.role,
+        req,
+        { changes: Object.keys(req.body || {}) }
+      );
+    } catch (auditError) {
+      console.error('Failed to log appointment update audit event:', auditError);
+    }
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {
@@ -215,9 +247,25 @@ export const deleteAppointment = async (req, res) => {
       return res.status(400).json(errorResponse('Invalid appointment ID format'));
     }
 
+    const deletedAppointment = await appointmentService.getAppointmentById(id).catch(() => null);
     await appointmentService.delete(id);
 
     res.status(200).json(successResponse('Appointment deleted successfully'));
+
+    // Audit appointment delete
+    try {
+      await auditService.logAction(
+        'appointment',
+        id,
+        'delete',
+        req.user._id.toString(),
+        req.user.role,
+        req,
+        deletedAppointment ? { doctorId: deletedAppointment.doctorId, patientId: deletedAppointment.patientId } : {}
+      );
+    } catch (auditError) {
+      console.error('Failed to log appointment delete audit event:', auditError);
+    }
   } catch (error) {
     console.error(error);
     if (error.message === 'Resource not found') {

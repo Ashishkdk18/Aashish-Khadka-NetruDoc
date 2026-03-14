@@ -3,6 +3,7 @@ import { BaseService } from '../../../services/baseService.js';
 import { AppointmentRepository } from '../repositories/appointmentRepository.js';
 import User from '../../users/models/userModel.js';
 import { NotificationService } from '../../notifications/services/notificationService.js';
+import emailService from '../../../utils/emailService.js';
 
 /**
  * Appointment Service
@@ -603,7 +604,27 @@ export class AppointmentService extends BaseService {
       throw new Error('Only pending appointments can be confirmed');
     }
 
-    return this.repository.confirm(appointmentId);
+    const updatedAppointment = await this.repository.confirm(appointmentId);
+
+    // Best-effort email notification to patient
+    try {
+      const populated = await this.getAppointmentById(appointmentId);
+      const patient = populated.patientId;
+      const doctor = populated.doctorId;
+
+      if (patient?.email) {
+        await emailService.sendAppointmentStatusEmail(patient.email, 'confirmed', {
+          patientName: patient.name,
+          doctorName: doctor?.name,
+          date: populated.date,
+          time: populated.time
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send appointment confirmation email:', error);
+    }
+
+    return updatedAppointment;
   }
 
   /**
@@ -624,6 +645,27 @@ export class AppointmentService extends BaseService {
       throw new Error('Cannot cancel completed appointment');
     }
 
-    return this.repository.cancel(appointmentId, userId, reason);
+    const cancelledAppointment = await this.repository.cancel(appointmentId, userId, reason);
+
+    // Best-effort email notification to patient
+    try {
+      const populated = await this.getAppointmentById(appointmentId);
+      const patient = populated.patientId;
+      const doctor = populated.doctorId;
+
+      if (patient?.email) {
+        await emailService.sendAppointmentStatusEmail(patient.email, 'cancelled', {
+          patientName: patient.name,
+          doctorName: doctor?.name,
+          date: populated.date,
+          time: populated.time,
+          reason
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send appointment cancellation email:', error);
+    }
+
+    return cancelledAppointment;
   }
 }

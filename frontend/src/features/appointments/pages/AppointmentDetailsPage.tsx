@@ -20,6 +20,7 @@ import {
   DialogActions,
   Snackbar,
   Stack,
+  TextField,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -36,6 +37,8 @@ import {
   Visibility as VisibilityIcon,
   Medication as MedicationIcon,
   Download as DownloadIcon,
+  AttachFile as AttachFileIcon,
+  Upload as UploadIcon,
 } from '@mui/icons-material'
 import dayjs from 'dayjs'
 
@@ -44,6 +47,7 @@ import { getAppointmentById, handleRescheduleRequest } from '../appointmentSlice
 import consultationApi, { Consultation } from '../../consultations/api/consultationApi'
 import { getPrescriptions, downloadPrescription } from '../../prescriptions/prescriptionSlice'
 import { Prescription } from '../../prescriptions/api/prescriptionApi'
+import { reportsApi, MedicalReport } from '../../reports/api/reportsApi'
 
 const statusColors = {
   pending: 'warning',
@@ -77,6 +81,11 @@ const AppointmentDetailsPage: React.FC = () => {
   >('idle')
   const [consultation, setConsultation] = useState<Consultation | null>(null)
   const [appointmentPrescriptions, setAppointmentPrescriptions] = useState<Prescription[]>([])
+  const [reports, setReports] = useState<MedicalReport[]>([])
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [reportUploading, setReportUploading] = useState(false)
+  const [reportFile, setReportFile] = useState<File | null>(null)
+  const [reportDescription, setReportDescription] = useState('')
 
   const appointment: any = currentAppointment
   const appointmentId = appointment?.id || appointment?._id || id
@@ -100,6 +109,25 @@ const AppointmentDetailsPage: React.FC = () => {
     }
     loadPrescriptions()
   }, [id, dispatch])
+
+  // Load medical reports for this appointment
+  const loadReports = React.useCallback(async () => {
+    if (!id) return
+    setReportsLoading(true)
+    try {
+      const res = await reportsApi.getByAppointmentId(id) as any
+      const items = res?.data?.items ?? res?.items ?? []
+      setReports(Array.isArray(items) ? items : [])
+    } catch (e) {
+      console.error('Failed to load reports', e)
+      setReports([])
+    } finally {
+      setReportsLoading(false)
+    }
+  }, [id])
+  useEffect(() => {
+    loadReports()
+  }, [loadReports])
 
   const patient =
     appointment && typeof appointment.patientId === 'object' ? appointment.patientId : null
@@ -748,6 +776,123 @@ const AppointmentDetailsPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Medical Reports Section */}
+            <Card sx={{ mt: 3 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <AttachFileIcon sx={{ mr: 1 }} />
+                    Medical Reports
+                  </Typography>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Upload form */}
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    Upload report (PDF or image, max 10MB)
+                  </Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+                    <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                      Choose file
+                      <input
+                        type="file"
+                        hidden
+                        accept=".pdf,image/*"
+                        onChange={(e) => setReportFile(e.target.files?.[0] || null)}
+                      />
+                    </Button>
+                    {reportFile && (
+                      <Typography variant="body2" color="text.secondary">
+                        {reportFile.name}
+                      </Typography>
+                    )}
+                    <TextField
+                      size="small"
+                      label="Description (optional)"
+                      value={reportDescription}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReportDescription(e.target.value)}
+                      sx={{ minWidth: 200 }}
+                    />
+                    <Button
+                      variant="contained"
+                      disabled={!reportFile || reportUploading}
+                      onClick={async () => {
+                        if (!id || !reportFile) return
+                        setReportUploading(true)
+                        try {
+                          await reportsApi.upload(id, reportFile, reportDescription || undefined)
+                          setReportFile(null)
+                          setReportDescription('')
+                          loadReports()
+                          setSnackbarMessage('Report uploaded successfully')
+                          setSnackbarOpen(true)
+                        } catch (e: any) {
+                          setSnackbarMessage(e?.message || 'Upload failed')
+                          setSnackbarOpen(true)
+                        } finally {
+                          setReportUploading(false)
+                        }
+                      }}
+                    >
+                      {reportUploading ? 'Uploading…' : 'Upload'}
+                    </Button>
+                  </Stack>
+                </Box>
+
+                {reportsLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : reports.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    No medical reports for this appointment.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {reports.map((r) => (
+                      <Box
+                        key={r._id}
+                        sx={{
+                          p: 1.5,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: 1
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {r.originalName}
+                          </Typography>
+                          {r.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {r.description}
+                            </Typography>
+                          )}
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {(r.size / 1024).toFixed(1)} KB
+                            {r.uploadedBy && ` • ${r.uploadedBy.name}`}
+                          </Typography>
+                        </Box>
+                        <Button
+                          size="small"
+                          startIcon={<DownloadIcon />}
+                          onClick={() => reportsApi.download(r._id, r.originalName)}
+                        >
+                          Download
+                        </Button>
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
@@ -792,7 +937,7 @@ const AppointmentDetailsPage: React.FC = () => {
                 )}
                 {doctor?.hospital && (
                   <Typography variant="body2" color="text.secondary">
-                    {doctor.hospital}
+                    {typeof doctor.hospital === 'object' ? (doctor.hospital as any)?.name : doctor.hospital}
                   </Typography>
                 )}
                 {doctor?.consultationFee != null && (

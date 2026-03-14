@@ -108,12 +108,26 @@ const AppointmentBookingPage: React.FC = () => {
 
         console.log('Creating appointment with data:', appointmentData)
 
-        await dispatch(createAppointment(appointmentData)).unwrap()
+        const createdAppointment = await dispatch(createAppointment(appointmentData)).unwrap()
 
-        // Navigate to success page or appointment details
-        navigate('/appointments/my', {
-          state: { message: 'Appointment booked successfully!' }
-        })
+        // If there is a consultation fee, navigate to payment page
+        if (doctor && doctor.consultationFee && doctor.consultationFee > 0) {
+          navigate('/payment', {
+            state: {
+              appointmentId: createdAppointment.id,
+              doctorId: doctor.id,
+              doctorName: doctor.name,
+              amount: doctor.consultationFee,
+              date: createdAppointment.date,
+              time: createdAppointment.time
+            }
+          })
+        } else {
+          // Navigate to success page or appointment details
+          navigate('/appointments/my', {
+            state: { message: 'Appointment booked successfully!' }
+          })
+        }
       } catch (error) {
         console.error('Failed to create appointment:', error)
       }
@@ -260,7 +274,7 @@ const AppointmentBookingPage: React.FC = () => {
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="body2" color="text.secondary">
                   <HospitalIcon sx={{ mr: 0.5, verticalAlign: 'middle' }} />
-                  {doctor.hospital || 'Hospital not specified'}
+                  {typeof doctor.hospital === 'object' ? (doctor.hospital as any)?.name : doctor.hospital || 'Hospital not specified'}
                 </Typography>
               </Box>
             </Grid>

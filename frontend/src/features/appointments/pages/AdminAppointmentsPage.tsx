@@ -29,7 +29,8 @@ import {
   Alert,
   CircularProgress,
   Grid,
-  Tooltip
+  Tooltip,
+  Pagination,
 } from '@mui/material'
 import {
   FilterList as FilterIcon,
@@ -77,8 +78,8 @@ const AdminAppointmentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
-  const currentPage = 1
-  const [limit] = useState(20)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [limit] = useState(10)
 
   const {
     appointments,
@@ -90,7 +91,7 @@ const AdminAppointmentsPage: React.FC = () => {
   // Load appointments on component mount and when filters change
   useEffect(() => {
     loadAppointments()
-  }, [statusFilter, startDate, endDate])
+  }, [statusFilter, startDate, endDate, currentPage])
 
   // Clear errors on unmount
   useEffect(() => {
@@ -139,6 +140,7 @@ const AdminAppointmentsPage: React.FC = () => {
   }
 
   const appointmentsArray = (appointments as any)?.items || []
+  const totalPages = (appointments as any)?.pagination?.totalPages ?? 1
   const filteredAppointments = appointmentsArray.filter((appointment: any) => {
     if (!searchTerm) return true
 
@@ -448,6 +450,18 @@ const AdminAppointmentsPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          {totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={(_, p) => setCurrentPage(p)}
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
         </CardContent>
       </Card>
 
