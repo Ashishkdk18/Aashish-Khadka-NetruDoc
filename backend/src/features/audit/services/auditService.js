@@ -1,10 +1,15 @@
 import AuditLog from '../models/auditLogModel.js';
+import { BaseService } from '../../../services/baseService.js';
+import { AuditRepository } from '../repositories/auditRepository.js';
 
 /**
  * Audit Service
- * Handles audit logging for system actions
+ * Handles audit logging and querying for system actions
  */
-export class AuditService {
+export class AuditService extends BaseService {
+  constructor() {
+    super(new AuditRepository());
+  }
   /**
    * Log an action
    * @param {String} entityType - Type of entity (e.g., 'prescription')
@@ -49,13 +54,23 @@ export class AuditService {
    * @returns {Promise<Array>}
    */
   async getEntityAuditLogs(entityType, entityId, options = {}) {
-    const { limit = 100, sort = '-timestamp' } = options;
-    
-    return AuditLog.find({ entityType, entityId })
-      .populate('userId', 'name email role')
-      .sort(sort)
-      .limit(limit)
-      .lean();
+    const {
+      limit = 100,
+      sort = '-timestamp',
+      page = 1
+    } = options;
+
+    const result = await this.repository.findAll(
+      { entityType, entityId },
+      {
+        page,
+        limit,
+        sort,
+        populate: [{ path: 'userId', select: 'name email role' }]
+      }
+    );
+
+    return result;
   }
 
   /**
@@ -65,12 +80,22 @@ export class AuditService {
    * @returns {Promise<Array>}
    */
   async getUserAuditLogs(userId, options = {}) {
-    const { limit = 100, sort = '-timestamp' } = options;
-    
-    return AuditLog.find({ userId })
-      .populate('userId', 'name email role')
-      .sort(sort)
-      .limit(limit)
-      .lean();
+    const {
+      limit = 100,
+      sort = '-timestamp',
+      page = 1
+    } = options;
+
+    const result = await this.repository.findAll(
+      { userId },
+      {
+        page,
+        limit,
+        sort,
+        populate: [{ path: 'userId', select: 'name email role' }]
+      }
+    );
+
+    return result;
   }
 }
