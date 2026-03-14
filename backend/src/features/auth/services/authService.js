@@ -83,7 +83,28 @@ export class AuthService {
       userPayload.specialization = userData.specialization;
       userPayload.qualifications = userData.qualifications || [];
       userPayload.experience = userData.experience || 0;
-      userPayload.hospital = userData.hospital;
+
+      if (userData.hospital) {
+        if (typeof userData.hospital === 'string') {
+            if (/^[0-9a-fA-F]{24}$/.test(userData.hospital)) {
+                userPayload.hospital = userData.hospital;
+            } else if (userData.hospital.trim() !== '') {
+               try {
+                   const mongoose = await import('mongoose');
+                   const Hospital = mongoose.model('Hospital');
+                   const hospital = await Hospital.findOne({ name: userData.hospital });
+                   if (hospital) {
+                      userPayload.hospital = hospital._id;
+                   }
+               } catch(err) {
+                   console.error("Error looking up hospital:", err);
+               }
+            }
+        } else if (typeof userData.hospital === 'object' && userData.hospital._id) {
+            userPayload.hospital = userData.hospital._id;
+        }
+      }
+
       userPayload.consultationFee = userData.consultationFee || 0;
       userPayload.availability = userData.availability;
       userPayload.qualificationDocuments = userData.qualificationDocuments || [];
@@ -91,6 +112,16 @@ export class AuthService {
     }
 
     // Create user (password will be hashed by pre-save hook)
+    // Remove hospital entirely if it's not a valid 24 character hex string to prevent BSONError
+    if (userPayload.hospital) {
+        if (typeof userPayload.hospital === 'string') {
+            if (!/^[0-9a-fA-F]{24}$/.test(userPayload.hospital)) {
+                delete userPayload.hospital;
+            }
+        } else if (typeof userPayload.hospital !== 'object') {
+             delete userPayload.hospital;
+        }
+    }
     const user = await this.userService.createUser(userPayload);
 
     // Generate and send OTP

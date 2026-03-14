@@ -21,7 +21,7 @@ const LoginPage: React.FC = () => {
   const location = useLocation()
   const dispatch = useDispatch<AppDispatch>()
 
-  const { loading, error, isAuthenticated, otpRequired } = useSelector((state: RootState) => state.auth)
+  const { loading, error, isAuthenticated, user, otpRequired } = useSelector((state: RootState) => state.auth)
 
   const [otpStep, setOtpStep] = useState(false)
   const [otpCode, setOtpCode] = useState('')
@@ -34,10 +34,14 @@ const LoginPage: React.FC = () => {
   const from = location.state?.from?.pathname || '/dashboard'
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate(from, { replace: true })
+    if (isAuthenticated && user) {
+      if (user.role === 'admin') {
+        navigate('/admin/dashboard', { replace: true })
+      } else {
+        navigate(from, { replace: true })
+      }
     }
-  }, [isAuthenticated, navigate, from])
+  }, [isAuthenticated, user, navigate, from])
 
   useEffect(() => {
     dispatch(clearError())
@@ -248,7 +252,7 @@ const LoginPage: React.FC = () => {
                 sx={{ mt: 3, mb: 2, py: 1.5 }}
                 disabled={loading}
               >
-                {loading ? <CircularProgress size={24} /> : 'Send Verification Code'}
+                {loading ? <CircularProgress size={24} /> : 'Login'}
               </Button>
             </>
           )}

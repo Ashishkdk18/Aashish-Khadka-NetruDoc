@@ -1,8 +1,10 @@
 import { validationResult } from 'express-validator';
 import { AuthService } from '../services/authService.js';
+import { AuditService } from '../../audit/services/auditService.js';
 import { successResponse, errorResponse, infoResponse, RESPONSE_MESSAGES } from '../../../utils/response.js';
 
 const authService = new AuthService();
+const auditService = new AuditService();
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -22,7 +24,7 @@ export const register = async (req, res) => {
     if (error.message === 'User already exists') {
       return res.status(400).json(errorResponse(error.message));
     }
-    res.status(500).json(errorResponse('Server error during registration'));
+    res.status(500).json(errorResponse(`Server error during registration: ${error.message}`));
   }
 };
 
@@ -50,6 +52,24 @@ export const login = async (req, res) => {
 
     // Direct login success
     res.status(200).json(successResponse(RESPONSE_MESSAGES.LOGIN_SUCCESS, result));
+
+    // Best-effort audit log for successful login
+    try {
+      if (result.user && result.user._id) {
+        await auditService.logAction(
+          'user',
+          result.user._id,
+          'view',
+          result.user._id.toString(),
+          result.user.role || 'patient',
+          req,
+          { email }
+        );
+      }
+    } catch (auditError) {
+      // Do not block login on audit failures
+      console.error('Failed to log login audit event:', auditError);
+    }
   } catch (error) {
     console.error('Login error details:', {
       message: error.message,
