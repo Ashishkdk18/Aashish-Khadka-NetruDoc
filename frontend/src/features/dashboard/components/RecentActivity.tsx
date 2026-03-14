@@ -46,14 +46,14 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ title, items, emptyMess
               }}
             >
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                <Typography variant="subtitle2">{item.title}</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{item.title}</Typography>
                 {item.subtitle && (
                   <Typography variant="body2" color="text.secondary">
                     {item.subtitle}
                   </Typography>
                 )}
                 {item.timestamp && (
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
                     {item.timestamp}
                   </Typography>
                 )}
@@ -64,7 +64,8 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ title, items, emptyMess
                     size="small"
                     label={item.statusLabel}
                     color={item.statusColor || 'default'}
-                    variant={item.statusColor ? 'filled' : 'outlined'}
+                    variant="filled"
+                    sx={{ fontWeight: 600, borderRadius: '6px' }}
                   />
                 )}
                 {item.link && (
@@ -73,6 +74,10 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ title, items, emptyMess
                     component={RouterLink}
                     to={item.link}
                     aria-label="View details"
+                    sx={{
+                       bgcolor: 'background.default',
+                       '&:hover': { bgcolor: 'primary.50', color: 'primary.main' }
+                    }}
                   >
                     <VisibilityIcon fontSize="small" />
                   </IconButton>

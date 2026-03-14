@@ -27,15 +27,16 @@ const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
         { label: 'Find Doctors', path: '/doctors' },
     ];
 
-    // Authenticated menu items
+    // Authenticated menu items (admin goes to admin dashboard only)
     const authenticatedMenuItems = [
         {
             label: 'Dashboard',
-            path: user?.role === 'doctor' ? '/doctor/dashboard' : '/dashboard',
+            path: user?.role === 'doctor' ? '/doctor/dashboard' : user?.role === 'admin' ? '/admin/dashboard' : '/dashboard',
         },
         { label: 'Notifications', path: '/notifications' },
         { label: 'Medical Records', path: '/medical-records' },
         { label: 'Prescriptions', path: '/prescriptions' },
+        { label: 'Payment History', path: '/payments/history' },
         { label: 'Profile', path: '/profile' },
     ];
 
@@ -92,13 +93,22 @@ const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
                         {isAuthenticated && (
                             <>
                                 {user?.role === 'admin' && (
-                                    <Link
-                                        to="/admin/dashboard"
-                                        className="group flex items-center space-x-4 text-3xl md:text-5xl font-display font-medium text-primary hover:opacity-100 opacity-60 transition-all duration-300"
-                                    >
-                                        <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
-                                        <span>Admin Dashboard</span>
-                                    </Link>
+                                    <>
+                                        <Link
+                                            to="/admin/analytics"
+                                            className="group flex items-center space-x-4 text-2xl md:text-3xl font-display font-medium text-primary hover:opacity-100 opacity-60 transition-all duration-300"
+                                        >
+                                            <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
+                                            <span>Analytics</span>
+                                        </Link>
+                                        <Link
+                                            to="/admin/audit-logs"
+                                            className="group flex items-center space-x-4 text-2xl md:text-3xl font-display font-medium text-primary hover:opacity-100 opacity-60 transition-all duration-300"
+                                        >
+                                            <span className="text-sm font-sans font-medium text-secondary group-hover:text-primary transition-colors transform -translate-y-2">+</span>
+                                            <span>Audit Logs</span>
+                                        </Link>
+                                    </>
                                 )}
                                 {user?.role === 'doctor' && (
                                     <>

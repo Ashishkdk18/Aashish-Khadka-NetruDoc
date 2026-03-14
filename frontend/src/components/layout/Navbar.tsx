@@ -63,7 +63,7 @@ const Navbar: React.FC = () => {
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
-              <ListItemButton component={Link} to="/dashboard" onClick={handleMobileMenuToggle}>
+              <ListItemButton component={Link} to={user?.role === 'admin' ? '/admin/dashboard' : '/dashboard'} onClick={handleMobileMenuToggle}>
                 <ListItemText primary="Dashboard" />
               </ListItemButton>
             </ListItem>
@@ -72,13 +72,6 @@ const Navbar: React.FC = () => {
                 <ListItemText primary="Profile" />
               </ListItemButton>
             </ListItem>
-            {user?.role === 'admin' && (
-              <ListItem disablePadding>
-                <ListItemButton component={Link} to="/admin/dashboard" onClick={handleMobileMenuToggle}>
-                  <ListItemText primary="Admin Dashboard" />
-                </ListItemButton>
-              </ListItem>
-            )}
             <ListItem disablePadding>
               <ListItemButton onClick={handleLogout}>
                 <ListItemText primary="Logout" />
@@ -144,17 +137,12 @@ const Navbar: React.FC = () => {
                   <Button color="inherit" component={Link} to="/notifications">
                     Notifications
                   </Button>
-                  <Button color="inherit" component={Link} to="/dashboard">
+                  <Button color="inherit" component={Link} to={user?.role === 'admin' ? '/admin/dashboard' : '/dashboard'}>
                     Dashboard
                   </Button>
                   <Button color="inherit" component={Link} to="/profile">
                     Profile
                   </Button>
-                  {user?.role === 'admin' && (
-                    <Button color="inherit" component={Link} to="/admin/dashboard">
-                      Admin
-                    </Button>
-                  )}
                   <Button color="inherit" onClick={handleLogout}>
                     Logout
                   </Button>

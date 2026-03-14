@@ -7,13 +7,11 @@ import {
   Typography,
   Grid,
   CircularProgress,
-  Alert,
   Button,
 } from '@mui/material'
 import {
   Schedule as ScheduleIcon,
   EventAvailable as EventIcon,
-  MedicalServices as MedicalIcon,
   CalendarToday as CalendarIcon,
   AccessTime as TimeIcon,
   Medication as MedicationIcon,
@@ -23,6 +21,7 @@ import {
   Person as PersonIcon,
   Videocam as VideocamIcon,
   Add as AddIcon,
+  Payment as PaymentIcon,
 } from '@mui/icons-material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -70,7 +69,6 @@ const DoctorDashboardPage: React.FC = () => {
   useEffect(() => {
     const items: Appointment[] = (appointments as any)?.items || (appointments as unknown as Appointment[])
     const prescriptionsArray = prescriptions || []
-    const consultationsArray = consultations || []
 
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0]
@@ -176,10 +174,6 @@ const DoctorDashboardPage: React.FC = () => {
     return (prescriptions || []).slice(0, 3)
   }
 
-  const getRecentConsultations = () => {
-    return (consultations || []).slice(0, 3)
-  }
-
   // Quick actions for doctor
   const quickActions = [
     {
@@ -195,7 +189,7 @@ const DoctorDashboardPage: React.FC = () => {
       onClick: () => {
         const upcoming = getUpcomingAppointments()
         if (upcoming.length > 0) {
-          navigate(`/consultation/${upcoming[0].id || upcoming[0]._id}`)
+          navigate(`/consultation/${upcoming[0].id || (upcoming[0] as { _id?: string })._id}`)
         } else {
           navigate('/appointments/doctor/schedule')
         }
@@ -278,6 +272,13 @@ const DoctorDashboardPage: React.FC = () => {
       actionLabel: 'Manage',
     },
     {
+      icon: <PaymentIcon />,
+      title: 'Payment History',
+      description: 'View your payments',
+      to: '/payments/history',
+      actionLabel: 'View Payments',
+    },
+    {
       icon: <PersonIcon />,
       title: 'Profile',
       description: 'Manage your account',
@@ -287,7 +288,7 @@ const DoctorDashboardPage: React.FC = () => {
   ]
 
   // Recent activity items
-  const recentAppointments: RecentActivityItem[] = getUpcomingAppointments().map((apt: Appointment) => ({
+  const recentAppointments: RecentActivityItem[] = getUpcomingAppointments().map((apt: Appointment & { _id?: string }) => ({
     id: apt.id || apt._id || '',
     title: (apt.patientId as any)?.name || 'Patient',
     subtitle: `${formatDate(apt.date)} at ${formatTime(apt.time)}`,
@@ -305,22 +306,8 @@ const DoctorDashboardPage: React.FC = () => {
     link: `/prescriptions/${prescription._id || prescription.id}`,
   }))
 
-  const recentConsultations: RecentActivityItem[] = getRecentConsultations().map((consultation: any) => ({
-    id: consultation._id || consultation.id,
-    title: 'Consultation',
-    subtitle: consultation.startTime ? dayjs(consultation.startTime).format('MMM D, YYYY h:mm A') : '',
-    statusLabel: consultation.status,
-    statusColor:
-      consultation.status === 'completed'
-        ? 'success'
-        : consultation.status === 'active'
-        ? 'primary'
-        : 'default',
-    link: `/consultations/${consultation._id || consultation.id}`,
-  }))
-
   const pendingActions: RecentActivityItem[] = [
-    ...getPendingRescheduleRequests().slice(0, 3).map((apt: Appointment) => ({
+    ...getPendingRescheduleRequests().slice(0, 3).map((apt: Appointment & { _id?: string }) => ({
       id: apt.id || apt._id || '',
       title: `Reschedule: ${(apt.patientId as any)?.name || 'Patient'}`,
       subtitle: `Requested: ${formatDate(apt.rescheduleNewDate as any)} at ${apt.rescheduleNewTime}`,
@@ -328,7 +315,7 @@ const DoctorDashboardPage: React.FC = () => {
       statusColor: 'warning' as const,
       link: `/appointments/${apt.id || apt._id}`,
     })),
-    ...getPendingToday().slice(0, 2).map((apt: Appointment) => ({
+    ...getPendingToday().slice(0, 2).map((apt: Appointment & { _id?: string }) => ({
       id: apt.id || apt._id || '',
       title: `Confirm: ${(apt.patientId as any)?.name || 'Patient'}`,
       subtitle: `${formatTime(apt.time)} • ${formatDate(apt.date)}`,

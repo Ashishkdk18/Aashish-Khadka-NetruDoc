@@ -6,6 +6,20 @@ const AdminDashboardPage: React.FC = () => {
 
   const adminCards = [
     {
+      title: 'Analytics',
+      description: 'View platform analytics and KPIs',
+      icon: '📊',
+      path: '/admin/analytics',
+      color: 'bg-blue-100 text-blue-800'
+    },
+    {
+      title: 'Audit Logs',
+      description: 'View system audit logs',
+      icon: '📋',
+      path: '/admin/audit-logs',
+      color: 'bg-gray-100 text-gray-800'
+    },
+    {
       title: 'All Users',
       description: 'View and manage all users',
       icon: '👥',
@@ -32,6 +46,13 @@ const AdminDashboardPage: React.FC = () => {
       icon: '🏥',
       path: '/admin/hospitals',
       color: 'bg-red-100 text-red-800'
+    },
+    {
+      title: 'Payments',
+      description: 'View platform transactions',
+      icon: '💳',
+      path: '/payments/history',
+      color: 'bg-green-100 text-green-800'
     }
   ]
 

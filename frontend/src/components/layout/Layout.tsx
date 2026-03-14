@@ -78,21 +78,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                                                 Notifications
                                             </Link>
                                             <Link
-                                                to="/dashboard"
+                                                to={user?.role === 'admin' ? '/admin/dashboard' : '/dashboard'}
                                                 className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
                                                 onClick={() => setIsUserMenuOpen(false)}
                                             >
                                                 Dashboard
                                             </Link>
-                                            {user?.role === 'admin' && (
-                                                <Link
-                                                    to="/admin/dashboard"
-                                                    className="block px-4 py-2 text-sm text-primary hover:bg-gray-50"
-                                                    onClick={() => setIsUserMenuOpen(false)}
-                                                >
-                                                    Admin Dashboard
-                                                </Link>
-                                            )}
                                             <button
                                                 onClick={handleLogout}
                                                 className="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-50"

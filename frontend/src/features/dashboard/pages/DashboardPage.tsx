@@ -7,7 +7,6 @@ import {
   Typography,
   Grid,
   CircularProgress,
-  Alert,
   Button,
 } from '@mui/material'
 import {
@@ -24,6 +23,7 @@ import {
   Person as PersonIcon,
   Search as SearchIcon,
   Videocam as VideocamIcon,
+  Payment as PaymentIcon,
 } from '@mui/icons-material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -230,6 +230,13 @@ const DashboardPage: React.FC = () => {
       description: 'Manage your account',
       to: '/profile',
       actionLabel: 'Edit Profile',
+    },
+    {
+      icon: <PaymentIcon />,
+      title: 'Payment History',
+      description: 'View your payments',
+      to: '/payments/history',
+      actionLabel: 'View Payments',
     },
     {
       icon: <SearchIcon />,
