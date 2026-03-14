@@ -6,12 +6,26 @@ import {
   getPaymentHistory,
   getPayment,
   refundPayment,
-  handleEsewaCallback
+  initializeEsewaPayment,
+  handleEsewaCallback,
+  handleEsewaSuccessRedirect,
+  handleEsewaFailureRedirect,
+  handleStripeWebhook
 } from './controllers/paymentController.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Public routes - Stripe webhook (raw body required)
+router.post('/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
+// Public routes - eSewa redirects (must accept both GET and POST)
+router.get('/esewa/callback', handleEsewaCallback);
+router.get('/esewa/success-redirect', handleEsewaSuccessRedirect);
+router.post('/esewa/success-redirect', handleEsewaSuccessRedirect);
+router.get('/esewa/failure-redirect', handleEsewaFailureRedirect);
+router.post('/esewa/failure-redirect', handleEsewaFailureRedirect);
+
+// Protected routes
 router.use(protect);
 
 // Routes
@@ -21,7 +35,7 @@ router.get('/history', getPaymentHistory);
 router.get('/:id', getPayment);
 router.post('/:id/refund', refundPayment);
 
-// eSewa callback (public route for payment gateway)
-router.post('/esewa/callback', handleEsewaCallback);
+// eSewa integration
+router.post('/esewa/initialize', initializeEsewaPayment);
 
 export default router;
