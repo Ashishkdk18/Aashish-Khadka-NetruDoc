@@ -57,9 +57,19 @@ export const seedDatabase = async () => {
       const existingDoctor = await User.findOne({ email: doctorData.email });
 
       if (!existingDoctor) {
+        // Find hospital ID if hospital name is provided
+        let hospitalId = undefined;
+        if (doctorData.hospital) {
+          const hospital = await Hospital.findOne({ name: doctorData.hospital });
+          if (hospital) {
+            hospitalId = hospital._id;
+          }
+        }
+
         // Password will be hashed by the model's pre-save hook
         await User.create({
           ...doctorData,
+          hospital: hospitalId,
           // Ensure OTP fields are not set
           otpCode: undefined,
           otpExpires: undefined,
@@ -69,6 +79,15 @@ export const seedDatabase = async () => {
         doctorsCreated++;
         console.log(`✅ Doctor created: ${doctorData.name} (${doctorData.email})`);
       } else {
+        // Even if doctor exists, update hospital reference if it's still a string
+        if (typeof existingDoctor.hospital === 'string') {
+           const hospital = await Hospital.findOne({ name: existingDoctor.hospital });
+           if (hospital) {
+             existingDoctor.hospital = hospital._id;
+             await existingDoctor.save();
+             console.log(`✅ Updated hospital reference for existing doctor: ${existingDoctor.email}`);
+           }
+        }
         doctorsSkipped++;
         console.log(`ℹ️  Doctor already exists: ${doctorData.email}`);
       }

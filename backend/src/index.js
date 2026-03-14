@@ -23,6 +23,9 @@ import notificationRoutes from './features/notifications/routes.js';
 import hospitalRoutes from './features/hospitals/routes.js';
 import chatRoutes from './features/chat/routes.js';
 import medicalRecordsRoutes from './features/medical-records/routes.js';
+import auditRoutes from './features/audit/routes.js';
+import reportsRoutes from './features/reports/routes.js';
+import adminRoutes from './features/admin/routes.js';
 
 // Import middleware
 import socketAuth from './middleware/socketAuth.js';
@@ -145,6 +148,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/hospitals', hospitalRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/medical-records', medicalRecordsRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Socket.io connection handling
 io.use(socketAuth);

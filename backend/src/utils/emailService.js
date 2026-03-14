@@ -140,6 +140,65 @@ export class EmailService {
         throw new Error('Invalid OTP type');
     }
   }
+
+  /**
+   * Send appointment status email (confirmed / cancelled)
+   * @param {String} email - Recipient email
+   * @param {String} status - 'confirmed' or 'cancelled'
+   * @param {Object} context - Additional context (patientName, doctorName, date, time, reason)
+   * @returns {Promise<void>}
+   */
+  async sendAppointmentStatusEmail(email, status, context = {}) {
+    const { patientName, doctorName, date, time, reason } = context;
+
+    const isConfirmed = status === 'confirmed';
+    const subject = isConfirmed
+      ? 'Your NetruDoc appointment has been confirmed'
+      : 'Your NetruDoc appointment has been cancelled';
+
+    const dateObj = date ? new Date(date) : null;
+    const formattedDate = dateObj && !Number.isNaN(dateObj.getTime())
+      ? dateObj.toLocaleDateString()
+      : 'the scheduled date';
+
+    const timeText = time || 'the scheduled time';
+
+    const reasonHtml = reason
+      ? `<p><strong>Reason:</strong> ${reason}</p>`
+      : '';
+
+    const statusLine = isConfirmed
+      ? 'has been <strong style=\"color:#2e7d32;\">confirmed</strong>.'
+      : 'has been <strong style=\"color:#c62828;\">cancelled</strong>.';
+
+    const greetingName = patientName || 'Patient';
+
+    const html = `
+      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">
+        <h2 style=\"color: #1976d2;\">NetruDoc Appointment Update</h2>
+        <p>Dear ${greetingName},</p>
+        <p>Your appointment with Dr. ${doctorName || 'your doctor'} on <strong>${formattedDate}</strong> at <strong>${timeText}</strong> ${statusLine}</p>
+        ${reasonHtml}
+        <p>If you have any questions, please log in to NetruDoc to review your appointments.</p>
+        <p>Best regards,<br/>The NetruDoc Team</p>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: 'ashishkhadka014@gmail.com',
+      to: email,
+      subject,
+      html
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Appointment ${status} email sent to ${email}`);
+    } catch (error) {
+      console.error(`Failed to send appointment ${status} email:`, error);
+      // Do not throw here – appointment flow should not fail because email failed
+    }
+  }
 }
 
 // Export singleton instance

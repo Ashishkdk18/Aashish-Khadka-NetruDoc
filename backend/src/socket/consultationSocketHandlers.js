@@ -7,6 +7,10 @@
  */
 import mongoose from 'mongoose';
 import Appointment from '../features/appointments/models/appointmentModel.js';
+import { NotificationService } from '../features/notifications/services/notificationService.js';
+import User from '../features/users/models/userModel.js';
+
+const notificationService = new NotificationService();
 
 const getConsultationRoomName = (appointmentId) => `consultation:appointment:${appointmentId}`;
 
@@ -79,6 +83,20 @@ export const registerConsultationHandlers = (io, socket) => {
     socket.emit('consultation:left', { appointmentId, roomName });
   });
 
+  socket.on('consultation:ringing', ({ appointmentId, isRinging }) => {
+    if (!appointmentId) return;
+    const roomName = getConsultationRoomName(appointmentId);
+    const userId = socket.data?.userId;
+    socket.to(roomName).emit('consultation:ringing', { appointmentId, isRinging, fromUserId: userId });
+  });
+
+  socket.on('consultation:missed_call', async ({ appointmentId, receiverId }) => {
+    if (!appointmentId || !receiverId) return;
+    const roomName = getConsultationRoomName(appointmentId);
+    const userId = socket.data?.userId;
+    socket.to(roomName).emit('consultation:missed_call', { appointmentId, fromUserId: userId });
+  });
+
   socket.on('consultation:end', async ({ appointmentId }) => {
     try {
       const userId = socket.data?.userId;
@@ -102,6 +120,30 @@ export const registerConsultationHandlers = (io, socket) => {
     const userId = socket.data?.userId;
     const roomName = getConsultationRoomName(appointmentId);
     socket.to(roomName).emit('consultation:offer', { appointmentId, offer, fromUserId: userId });
+  });
+
+  socket.on('consultation:missed_call', async ({ appointmentId, receiverId }) => {
+    if (!appointmentId || !receiverId) return;
+
+    const roomName = getConsultationRoomName(appointmentId);
+    const userId = socket.data?.userId;
+
+    try {
+      // Create persistent notification
+      const sender = await User.findById(userId).select('name');
+      await notificationService.createNotification({
+        userId: receiverId,
+        type: 'missed_call',
+        title: 'Missed Call',
+        message: `You have a missed consultation call from ${sender?.name || 'User'}.`,
+        link: `/consultation/${appointmentId}`,
+        metadata: { appointmentId }
+      });
+    } catch (error) {
+      console.error('Failed to create missed call notification:', error);
+    }
+
+    socket.to(roomName).emit('consultation:missed_call', { appointmentId, fromUserId: userId });
   });
 
   socket.on('consultation:answer', ({ appointmentId, answer }) => {
