@@ -47,9 +47,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles }) => {
   }
 
   // If no explicit roles are given and this is the generic dashboard route,
-  // send doctors to their dedicated dashboard while patients stay on /dashboard
-  if (!roles && user && location.pathname === '/dashboard' && user.role === 'doctor') {
-    return <Navigate to="/doctor/dashboard" replace />
+  // send doctors to doctor dashboard and admins to admin dashboard; patients stay on /dashboard
+  if (!roles && user && location.pathname === '/dashboard') {
+    if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />
+    if (user.role === 'doctor') return <Navigate to="/doctor/dashboard" replace />
   }
 
   return <>{children}</>
