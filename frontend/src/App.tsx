@@ -31,6 +31,9 @@ import PrescriptionListPage from './features/prescriptions/pages/PrescriptionLis
 import PrescriptionDetailsPage from './features/prescriptions/pages/PrescriptionDetailsPage'
 import CreatePrescriptionPage from './features/prescriptions/pages/CreatePrescriptionPage'
 import PaymentPage from './features/payments/pages/PaymentPage'
+import PaymentSuccessPage from './features/payments/pages/PaymentSuccessPage'
+import PaymentFailurePage from './features/payments/pages/PaymentFailurePage'
+import PaymentHistoryPage from './features/payments/pages/PaymentHistoryPage'
 import DashboardPage from './features/dashboard/pages/DashboardPage'
 import DoctorDashboardPage from './features/dashboard/pages/DoctorDashboardPage'
 import AdminDashboardPage from './features/dashboard/pages/AdminDashboardPage'
@@ -42,6 +45,8 @@ import NotificationsPage from './features/notifications/pages/NotificationsPage'
 import ChatPage from './features/chat/pages/ChatPage'
 import ConsultationDetailsPage from './features/consultations/pages/ConsultationDetailsPage'
 import MedicalRecordsPage from './features/medical-records/pages/MedicalRecordsPage'
+import AuditLogPage from './features/audit/pages/AuditLogPage'
+import AdminAnalyticsPage from './features/admin/pages/AdminAnalyticsPage'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -167,11 +172,21 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/payment/:appointmentId" element={
+        <Route path="/payment" element={
           <ProtectedRoute>
             <PaymentPage />
           </ProtectedRoute>
         } />
+
+        <Route path="/payments/history" element={
+          <ProtectedRoute>
+            <PaymentHistoryPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Payment redirect pages - public so eSewa redirect works (user may have session) */}
+        <Route path="/payment/success" element={<PaymentSuccessPage />} />
+        <Route path="/payment/failure" element={<PaymentFailurePage />} />
 
         {/* Role-based routes */}
         <Route path="/dashboard" element={
@@ -230,6 +245,17 @@ function App() {
         <Route path="/admin/appointments" element={
           <ProtectedRoute roles={['admin']}>
             <AdminAppointmentsPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/audit-logs" element={
+          <ProtectedRoute roles={['admin']}>
+            <AuditLogPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/analytics" element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminAnalyticsPage />
           </ProtectedRoute>
         } />
 
