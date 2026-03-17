@@ -68,6 +68,12 @@ const ConsultationPage: React.FC = () => {
   const [consultationId, setConsultationId] = useState<string | null>(null)
   const [prescriptionDialogOpen, setPrescriptionDialogOpen] = useState(false)
 
+  // Ringing alert states
+  const [isIncomingCall, setIsIncomingCall] = useState(false)
+  const [incomingOffer, setIncomingOffer] = useState<RTCSessionDescriptionInit | null>(null)
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null)
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // New states for connection status and feedback
   const [callStatus, setCallStatus] = useState<'idle' | 'ready' | 'connecting' | 'connected' | 'ended' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -127,6 +133,22 @@ const ConsultationPage: React.FC = () => {
   }, [appointmentId])
 
   // Load consultation data and enumerate devices
+  useEffect(() => {
+    // Initialize ringtone
+    ringtoneRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3')
+    ringtoneRef.current.loop = true
+
+    return () => {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause()
+        ringtoneRef.current = null
+      }
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     if (!currentAppointmentId) return
     const loadConsultation = async () => {
@@ -280,12 +302,34 @@ const ConsultationPage: React.FC = () => {
       setAudioOnly(!webrtcRef.current.isVideoEnabled())
       console.log('WebRTC offer created:', offer)
       if (!currentAppointmentId) return
+
+      // Emit ringing state
+      emit('consultation:ringing', { appointmentId: currentAppointmentId, isRinging: true })
+
       emit('consultation:offer', { appointmentId: currentAppointmentId, offer })
+
+      // Start 120s timeout for the call
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current)
+      callTimeoutRef.current = setTimeout(() => {
+        if (callStatus !== 'connected') {
+          console.log('Call timed out after 120 seconds')
+          handleEndCall()
+          setErrorMessage('Call timed out. The other participant did not answer.')
+
+          // Emit missed call event
+          const receiverId = isDoctor ? currentConsultation?.patientId : currentConsultation?.doctorId
+          const receiverIdStr = typeof receiverId === 'object' ? (receiverId as any)?._id || (receiverId as any)?.id : receiverId
+          if (receiverIdStr) {
+            emit('consultation:missed_call', { appointmentId: currentAppointmentId, receiverId: receiverIdStr })
+          }
+        }
+      }, 120000)
+
       // Note: setInCall(true) is now handled in onConnectionStateChange when 'connected'
       console.log('Call started successfully')
     } catch (error: any) {
       console.error('Failed to start call:', error)
-      setCallStatus('error')
+      setCallStatus('ready')
       setErrorMessage(error.message || 'Failed to start call')
     } finally {
       isCreatingOfferRef.current = false
@@ -317,6 +361,10 @@ const ConsultationPage: React.FC = () => {
           setInCall(true)
           setCallStatus('connected')
           setCallStartTime(new Date())
+          if (callTimeoutRef.current) {
+            clearTimeout(callTimeoutRef.current)
+            callTimeoutRef.current = null
+          }
         } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
           setInCall(false)
           setCallStatus('ended')
@@ -363,20 +411,39 @@ const ConsultationPage: React.FC = () => {
   }
 
   const handleEndCall = async () => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current)
+      callTimeoutRef.current = null
+    }
     await webrtcRef.current?.stop()
     setInCall(false)
     setCallStatus('ended')
     setCallStartTime(null)
     if (currentAppointmentId) {
       emit('consultation:end', { appointmentId: currentAppointmentId })
+      emit('consultation:ringing', { appointmentId: currentAppointmentId, isRinging: false })
     }
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+    }
+    setIsIncomingCall(false)
+    setIncomingOffer(null)
   }
 
-  useSocketEvent<{ appointmentId: string; offer: RTCSessionDescriptionInit }>('consultation:offer', async (payload) => {
-    if (!payload?.offer) return
-    if (currentAppointmentId && payload?.appointmentId && payload.appointmentId !== currentAppointmentId) return
+  const handleAnswerCall = async () => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current)
+      callTimeoutRef.current = null
+    }
+    if (!incomingOffer || !currentAppointmentId) return
     try {
       setCallStatus('connecting')
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause()
+        ringtoneRef.current.currentTime = 0
+      }
+      setIsIncomingCall(false)
 
       // If the receiver's peer was closed from a previous call, reinitialize
       if (!webrtcRef.current || !webrtcRef.current.getPeer()) {
@@ -386,15 +453,86 @@ const ConsultationPage: React.FC = () => {
       }
       if (!webrtcRef.current) return
 
-      const answer = await webrtcRef.current.handleRemoteOffer(payload.offer)
+      const answer = await webrtcRef.current.handleRemoteOffer(incomingOffer)
       setAudioOnly(!webrtcRef.current.isVideoEnabled())
-      if (!currentAppointmentId) return
+
       emit('consultation:answer', { appointmentId: currentAppointmentId, answer })
-      // Note: setInCall(true) is now handled in onConnectionStateChange when 'connected'
+      emit('consultation:ringing', { appointmentId: currentAppointmentId, isRinging: false })
+      setIncomingOffer(null)
     } catch (error) {
       console.error('Failed to handle remote offer', error)
       setCallStatus('error')
       setErrorMessage((error as Error).message || 'Failed to handle incoming call')
+    }
+  }
+
+  const handleRejectCall = () => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current)
+      callTimeoutRef.current = null
+    }
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+    }
+    setIsIncomingCall(false)
+    setIncomingOffer(null)
+    if (currentAppointmentId) {
+      emit('consultation:ringing', { appointmentId: currentAppointmentId, isRinging: false })
+      emit('consultation:end', { appointmentId: currentAppointmentId })
+
+      // Emit missed call event when rejected
+      const receiverId = isDoctor ? currentConsultation?.patientId : currentConsultation?.doctorId
+      const receiverIdStr = typeof receiverId === 'object' ? (receiverId as any)?._id || (receiverId as any)?.id : receiverId
+      if (receiverIdStr) {
+        emit('consultation:missed_call', { appointmentId: currentAppointmentId, receiverId: receiverIdStr })
+      }
+    }
+  }
+
+  useSocketEvent<{ appointmentId: string; offer: RTCSessionDescriptionInit }>('consultation:offer', async (payload) => {
+    if (!payload?.offer) return
+    if (currentAppointmentId && payload?.appointmentId && payload.appointmentId !== currentAppointmentId) return
+
+    // Store offer and wait for user to answer
+    setIncomingOffer(payload.offer)
+    setIsIncomingCall(true)
+  })
+
+  useSocketEvent<{ appointmentId: string; isRinging: boolean; fromUserId: string }>('consultation:ringing', (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      if (payload.isRinging) {
+        setIsIncomingCall(true)
+        if (ringtoneRef.current) {
+          ringtoneRef.current.play().catch(e => console.error('Error playing ringtone:', e))
+        }
+
+        // Start 120s timeout for incoming call too
+        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current)
+        callTimeoutRef.current = setTimeout(() => {
+          if (isIncomingCall) {
+            console.log('Incoming call timed out after 120 seconds')
+            handleRejectCall()
+            setErrorMessage('Missed call. The consultation call timed out.')
+          }
+        }, 120000)
+      } else {
+        setIsIncomingCall(false)
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause()
+          ringtoneRef.current.currentTime = 0
+        }
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current)
+          callTimeoutRef.current = null
+        }
+      }
+    }
+  })
+
+  useSocketEvent<{ appointmentId: string; fromUserId: string }>('consultation:missed_call', (payload) => {
+    if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
+      setErrorMessage('You have a missed consultation call.')
     }
   })
 
@@ -435,10 +573,10 @@ const ConsultationPage: React.FC = () => {
       setCallStatus('ready')
       setErrorMessage(null) // Clear any previous errors
 
-      // If doctor joins second and patient is waiting, auto-initiate offer immediately
-      if (isDoctor && payload.participantCount && payload.participantCount > 1 && !inCall) {
-        handleStartCall()
-      }
+    // If participant joins second and other is waiting, auto-initiate offer immediately
+    if (payload.participantCount && payload.participantCount > 1 && !inCall && isDoctor) {
+      handleStartCall()
+    }
     }
   })
 
@@ -454,9 +592,10 @@ const ConsultationPage: React.FC = () => {
     if (currentAppointmentId && payload?.appointmentId === currentAppointmentId) {
       console.log('Other participant joined the consultation room:', payload.userId)
 
-      // Only doctors auto-initiate offers to prevent glare (both peers creating offers simultaneously)
+      // Both doctors and patients can initiate offers, but prefer doctor to prevent glare
       // Use hasJoinedRoomRef for synchronous check instead of async React state
-      if (isDoctor && webrtcRef.current && hasJoinedRoomRef.current && !inCall) {
+      if (!isDoctor) return
+      if (webrtcRef.current && hasJoinedRoomRef.current && !inCall) {
         if (isCreatingOfferRef.current) return
         isCreatingOfferRef.current = true
         try {
@@ -464,6 +603,7 @@ const ConsultationPage: React.FC = () => {
           setErrorMessage(null)
           const offer = await webrtcRef.current.createOffer()
           if (!currentAppointmentId) return
+          emit('consultation:ringing', { appointmentId: currentAppointmentId, isRinging: true })
           emit('consultation:offer', { appointmentId: currentAppointmentId, offer })
           console.log('Auto-initiated offer to joining participant')
         } catch (error: any) {
@@ -543,8 +683,7 @@ const ConsultationPage: React.FC = () => {
       case 'idle':
         return 'Connecting to consultation room...'
       case 'ready':
-        const otherParticipant = isDoctor ? 'patient' : 'doctor'
-        return `Ready. Waiting for ${otherParticipant} to join the page.`
+        return 'Ready. Both participants can start the call.'
       case 'connecting':
         return 'Establishing video connection...'
       case 'connected':
@@ -559,7 +698,7 @@ const ConsultationPage: React.FC = () => {
     }
   }
 
-  const showStartCallButton = callStatus === 'ready' || callStatus === 'ended'
+  const showStartCallButton = callStatus === 'ready' || callStatus === 'ended' || callStatus === 'error'
   const showEndCallButton = callStatus === 'connected'
 
   // Get available media devices
@@ -701,29 +840,13 @@ const ConsultationPage: React.FC = () => {
     }
   }
 
-  // Check if camera/microphone permissions are available
-  const checkMediaPermissions = async () => {
-    try {
-      const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
-      const micResult = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-      return {
-        camera: result.state,
-        microphone: micResult.state
-      }
-    } catch (error) {
-      // Permissions API not supported
-      return { camera: 'unknown', microphone: 'unknown' }
-    }
-  }
-
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Video Consultation
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Secure video consultation using WebRTC. Both participants should be on this page for a call
-        to connect.
+        Secure video consultation using WebRTC. Either participant can start the call once both are on this page.
       </Typography>
 
       {/* Status Banner */}
@@ -744,7 +867,7 @@ const ConsultationPage: React.FC = () => {
           </Typography>
           {callStatus === 'ready' && (
             <Typography variant="body2" color="text.secondary">
-              Both participants should be on this page for the call to connect.
+              Both participants can now start the video call.
             </Typography>
           )}
           {callStatus === 'ready' && (
@@ -1032,6 +1155,41 @@ const ConsultationPage: React.FC = () => {
           {errorMessage}
         </Alert>
       </Snackbar>
+
+      {/* Incoming Call Dialog */}
+      <MuiDialog open={isIncomingCall} maxWidth="xs" fullWidth>
+        <MuiDialogTitle sx={{ textAlign: 'center', pt: 4 }}>
+          <VideocamIcon color="primary" sx={{ fontSize: 64, mb: 2 }} />
+          <Typography variant="h5">Incoming Video Call</Typography>
+        </MuiDialogTitle>
+        <MuiDialogContent sx={{ textAlign: 'center' }}>
+          <Typography variant="body1">
+            {isDoctor ? 'The patient' : 'The doctor'} is calling you for the consultation.
+          </Typography>
+        </MuiDialogContent>
+        <MuiDialogActions sx={{ justifyContent: 'center', pb: 4, px: 4, gap: 2 }}>
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={<CallEndIcon />}
+            onClick={handleRejectCall}
+            fullWidth
+            sx={{ borderRadius: 8 }}
+          >
+            Reject
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<CallIcon />}
+            onClick={handleAnswerCall}
+            fullWidth
+            sx={{ borderRadius: 8 }}
+          >
+            Answer
+          </Button>
+        </MuiDialogActions>
+      </MuiDialog>
 
       {/* Device Selection Dialog */}
       <MuiDialog open={showDeviceDialog} onClose={() => setShowDeviceDialog(false)} maxWidth="sm" fullWidth>
