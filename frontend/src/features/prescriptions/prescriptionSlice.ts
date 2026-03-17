@@ -24,7 +24,7 @@ const initialState: PrescriptionState = {
 // Async thunks
 export const getPrescriptions = createAsyncThunk(
   'prescriptions/getPrescriptions',
-  async (params?: { page?: number; limit?: number; sort?: string; patientId?: string; doctorId?: string; appointmentId?: string }, { rejectWithValue }) => {
+  async (params: { page?: number; limit?: number; sort?: string; patientId?: string; doctorId?: string; appointmentId?: string } = {}, { rejectWithValue }) => {
     try {
       const response = await prescriptionApi.getPrescriptions(params)
       const items = (response.data as any)?.items || (Array.isArray(response.data) ? response.data : [])

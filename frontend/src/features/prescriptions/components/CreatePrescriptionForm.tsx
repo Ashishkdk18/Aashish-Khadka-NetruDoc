@@ -10,16 +10,10 @@ import {
   Box,
   Grid,
   IconButton,
-  Chip,
   Typography,
   Divider,
   Stack,
   Alert,
-  Autocomplete,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -29,7 +23,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs, { Dayjs } from 'dayjs'
+import { Dayjs } from 'dayjs'
 import { AppDispatch, RootState } from '../../../store/index'
 import { createPrescription, clearError } from '../prescriptionSlice'
 import { Medication, Diagnosis } from '../api/prescriptionApi'

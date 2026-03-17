@@ -20,7 +20,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -41,7 +40,6 @@ const PrescriptionDetailsPage: React.FC = () => {
   const { currentPrescription, loading, error, downloading } = useSelector(
     (state: RootState) => state.prescriptions
   )
-  const { user } = useSelector((state: RootState) => state.auth)
 
   useEffect(() => {
     if (id) {
