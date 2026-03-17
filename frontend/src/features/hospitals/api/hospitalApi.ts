@@ -78,5 +78,19 @@ export const hospitalApi = {
   getHospitalStats: async (id: string): Promise<any> => {
     const response = await apiClient.get<{ stats: any }>(`${HOSPITAL_API_BASE}/${id}/stats`);
     return response.data.stats;
+  },
+
+  /**
+   * Create new hospital (Admin only)
+   */
+  createHospital: async (hospitalData: any): Promise<any> => {
+    return apiClient.post(HOSPITAL_API_BASE, hospitalData);
+  },
+
+  /**
+   * Update hospital details (Admin only)
+   */
+  updateHospital: async (id: string, hospitalData: any): Promise<any> => {
+    return apiClient.put(`${HOSPITAL_API_BASE}/${id}`, hospitalData);
   }
 };

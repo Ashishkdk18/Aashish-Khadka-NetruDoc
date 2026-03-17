@@ -15,6 +15,17 @@ const AdminHospitalsPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editHospitalData, setEditHospitalData] = useState<any>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newHospitalData, setNewHospitalData] = useState({
+    name: '',
+    type: 'hospital',
+    city: '',
+    street: '',
+    state: '',
+    phone: ''
+  })
 
   useEffect(() => {
     if (currentUser?.role !== 'admin') {
@@ -74,6 +85,15 @@ const AdminHospitalsPage: React.FC = () => {
               Hospital<br />
               <span className="text-secondary opacity-60">Management</span>
             </h1>
+          </div>
+          <div className="flex justify-end mb-8">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-8 py-4 bg-accent text-white rounded-full font-display font-medium hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2"
+            >
+              <span>+</span>
+              <span>Add New Hospital</span>
+            </button>
           </div>
         </div>
       </section>
@@ -183,12 +203,29 @@ const AdminHospitalsPage: React.FC = () => {
                               )}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <Link
-                                to={`/admin/hospitals/${hospital.id}`}
-                                className="inline-flex items-center justify-center px-4 py-2 bg-primary text-background hover:bg-secondary transition-colors duration-300 text-sm font-medium rounded-full"
-                              >
-                                View Profile
-                              </Link>
+                              <div className="flex flex-col space-y-2">
+                                <button
+                                  onClick={() => {
+                                    setEditHospitalData({
+                                      id: hospital.id,
+                                      name: hospital.name,
+                                      type: hospital.type,
+                                      city: hospital.address.city,
+                                      isActive: hospital.isActive
+                                    })
+                                    setShowEditModal(true)
+                                  }}
+                                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-300 text-sm font-medium rounded-full"
+                                >
+                                  Edit
+                                </button>
+                                <Link
+                                  to={`/admin/hospitals/${hospital.id}`}
+                                  className="inline-flex items-center justify-center px-4 py-2 bg-primary text-background hover:bg-secondary transition-colors duration-300 text-sm font-medium rounded-full"
+                                >
+                                  View Profile
+                                </Link>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -229,6 +266,233 @@ const AdminHospitalsPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Edit Hospital Modal */}
+      {showEditModal && editHospitalData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Edit Hospital</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hospital Name</label>
+                <input
+                  type="text"
+                  value={editHospitalData.name}
+                  onChange={(e) => setEditHospitalData({ ...editHospitalData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={editHospitalData.type}
+                  onChange={(e) => setEditHospitalData({ ...editHospitalData, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="hospital">Hospital</option>
+                  <option value="clinic">Clinic</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                  <option value="government">Government</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  value={editHospitalData.city}
+                  onChange={(e) => setEditHospitalData({ ...editHospitalData, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={editHospitalData.isActive}
+                  onChange={(e) => setEditHospitalData({ ...editHospitalData, isActive: e.target.checked })}
+                  className="h-4 w-4 text-accent focus:ring-accent border-gray-300 rounded"
+                />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                  Active
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditHospitalData(null)
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await hospitalApi.updateHospital(editHospitalData.id, {
+                      name: editHospitalData.name,
+                      type: editHospitalData.type,
+                      'address.city': editHospitalData.city,
+                      isActive: editHospitalData.isActive
+                    }) as any
+                    if (response.status === 'success') {
+                      setShowEditModal(false)
+                      setEditHospitalData(null)
+                      loadHospitals()
+                    } else {
+                      alert(response.message || 'Failed to update hospital')
+                    }
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to update hospital')
+                  }
+                }}
+                className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Hospital Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">Add New Hospital</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hospital Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newHospitalData.name}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={newHospitalData.type}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="hospital">Hospital</option>
+                  <option value="clinic">Clinic</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                  <option value="government">Government</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                <input
+                  type="text"
+                  required
+                  value={newHospitalData.city}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Street *</label>
+                <input
+                  type="text"
+                  required
+                  value={newHospitalData.street}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, street: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                <input
+                  type="text"
+                  required
+                  value={newHospitalData.state}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, state: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                <input
+                  type="text"
+                  required
+                  value={newHospitalData.phone}
+                  onChange={(e) => setNewHospitalData({ ...newHospitalData, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newHospitalData.name || !newHospitalData.city || !newHospitalData.street || !newHospitalData.state || !newHospitalData.phone) {
+                    alert('Please fill in all required fields')
+                    return
+                  }
+                  try {
+                    const response = await hospitalApi.createHospital({
+                      name: newHospitalData.name,
+                      type: newHospitalData.type,
+                      address: {
+                        street: newHospitalData.street,
+                        city: newHospitalData.city,
+                        state: newHospitalData.state,
+                        coordinates: { type: 'Point', coordinates: [85.3, 27.7] } // Default for Kathmandu
+                      },
+                      contact: {
+                        phone: newHospitalData.phone
+                      }
+                    }) as any
+                    if (response.status === 'success') {
+                      setShowAddModal(false)
+                      setNewHospitalData({
+                        name: '',
+                        type: 'hospital',
+                        city: '',
+                        street: '',
+                        state: '',
+                        phone: ''
+                      })
+                      loadHospitals()
+                    } else {
+                      alert(response.message || 'Failed to create hospital')
+                    }
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to create hospital')
+                  }
+                }}
+                className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Create Hospital
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
